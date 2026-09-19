@@ -23,6 +23,9 @@ saved-operation replay, evidence reports and bounded trace reduction.
 This repository is the home for the reusable Redshirt implementation. The shared
 core has not yet been extracted, and there is no standalone runner to install here.
 
+Follow [progress and measured results](docs/PROGRESS.md) and the
+[public progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1).
+
 ## Direction
 
 - Keep controller, environment, evaluator and decision-provider interfaces small
