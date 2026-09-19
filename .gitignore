@@ -1,0 +1,17 @@
+# Credentials and machine-local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.local/
+
+# Private experiment artifacts
+/artifacts/
+/evidence/
+/runs/
+
+# Editor and operating-system files
+*~
+*.swp
+.DS_Store
