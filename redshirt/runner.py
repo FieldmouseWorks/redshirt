@@ -82,7 +82,7 @@ class Adapter(Protocol):
 def candidates_for(adapter, observation):
     candidates = adapter.candidates(observation)
     ids = [c.id for c in candidates]
-    if (len(candidates) > 16 or len(set(ids)) != len(ids) or "stop" in ids
+    if (len(candidates) > 96 or len(set(ids)) != len(ids) or "stop" in ids
             or any(not isinstance(c.id, str) or not c.id or len(c.id) > 80
                    or not isinstance(c.description, str) or len(c.description) > 512
                    or not 1 <= c.inputs <= 24 or len(encoded(c.operation)) > 512 for c in candidates)):
@@ -215,9 +215,25 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
                 request["candidates"]["stop"] = "Stop the experiment."
                 if len(encoded(request)) > 16384:
                     raise Stop("observation_size")
+                receipt_limit = getattr(provider, "evidence_limit", 0)
+                if type(receipt_limit) is not int or not 0 <= receipt_limit <= 131072:
+                    raise Stop("provider_evidence_size")
+                # Reserve a bounded provider receipt before an uncertain/costly
+                # dispatch, leaving final evaluation/report space untouched.
+                if evidence.used + receipt_limit + len(encoded(request)) + 1024 > evidence.limit - evidence.RESERVE:
+                    raise Stop("evidence_budget")
                 evidence.event("request", request)
                 report["requests"] += 1
-                chosen = await bounded(provider.select(json.loads(encoded(request))))
+                try:
+                    chosen = await bounded(provider.select(json.loads(encoded(request))))
+                finally:
+                    drain = getattr(provider, "take_evidence", None)
+                    if drain:
+                        receipts = drain()
+                        if not isinstance(receipts, list) or len(receipts) > 1 or len(encoded(receipts)) > 131072:
+                            raise Stop("provider_evidence_size")
+                        for receipt in receipts:
+                            evidence.event("provider_receipt", receipt)
             admit()
             if not isinstance(chosen, str) or len(chosen) > 80:
                 raise Stop("invalid_decision")

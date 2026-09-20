@@ -38,8 +38,9 @@ python3 -m unittest discover -s tests -v
 
 For a local adapter, put this checkout on `PYTHONPATH` or install it in the
 adapter's virtual environment with `python -m pip install -e /path/to/redshirt`.
-There is no network provider in this slice. The mock transport accepts an
-explicitly supplied asynchronous callable and has no fallback or retries.
+The optional [Jev provider](docs/JEV.md) adds pinned, bounded Choice selection
+with per-call evidence. It is explicitly enabled; the mock transport and ordinary
+model-free selectors remain available without network access or credentials.
 
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never
