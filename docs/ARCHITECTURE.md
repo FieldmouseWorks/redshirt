@@ -26,6 +26,40 @@ permanent controller. Conary's existing Rust pilot is also a baseline; it still
 contains package action/fact types and a package-specific oracle, so extraction
 must preserve its proofs while moving those responsibilities behind adapter traits.
 
+## Consumer-driven work
+
+Concrete application work can lead development while Redshirt keeps separately
+owned reusable improvements. This is the owner's September20 continuation
+direction. Use the existing issue/PR system and versioned contracts to coordinate;
+no new tracker or context/graph framework is required.
+
+For a need discovered in a consumer project:
+
+1. Identify the owner. Application rules, content, role/actor policy, observations,
+   actions and independent evaluators belong to the consumer. Shared controller,
+   provider, budgets, cancellation, evidence format and concrete replay belong here.
+2. Search current Redshirt issues. Update the owning issue or open one bounded
+   follow-up with the observed limitation (or clearly labelled hypothesis), generic
+   contract, synthetic/sanitized reproducer and acceptance check. Record whether
+   the active application outcome depends on it. Do not duplicate an existing item.
+3. Implement a required shared change in its own Redshirt branch/PR and leave
+   game/package-specific integration in the consumer. Record nonblocking ideas
+   in this project's queue while the consumer continues its selected outcome.
+   Neither a local copy of the controller nor an unbounded platform detour closes
+   the shared need.
+4. Verify the shared boundary here and the actual integration in the consumer.
+   Record exact revisions and compatibility requirements. Consumer passes are
+   separate from generic contract passes, model usefulness and historical claims.
+5. Keep the issue/progress notes current with the outcome, failure or deferred
+   next action. A private counterpart links the public issue/PR and required
+   revision; private identifiers, source and evidence stay in its own tracker.
+
+The [current progress surface](PROGRESS.md#current-surface) links existing shared
+owners and proofs. Use those issues before proposing another provider transport,
+interactive API or controller migration. Broaden the platform only when a
+concrete acceptance case needs it. Preserve model-free execution/replay and
+scope any new live-provider comparison separately.
+
 ## First migration proof
 
 1. Extract only demonstrated common controller/provider/evidence behavior into a

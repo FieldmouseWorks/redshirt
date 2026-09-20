@@ -6,6 +6,12 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 
 ## Current surface
 
+The [consumer workflow](ARCHITECTURE.md#consumer-driven-work), tracked in
+[issue#13](https://github.com/FieldmouseWorks/redshirt/issues/13), keeps shared
+opportunities and required dependencies in Redshirt's own queue while a concrete
+application outcome leads the work. This is a documentation/ownership update,
+not a new runtime capability or another provider experiment.
+
 | Surface | Status | Evidence or next proof |
 | --- | --- | --- |
 | Conary fixture experiments | Implemented in Conary; draft under review | Real package sequences, independent checks, concrete replay and bounded reduction |
