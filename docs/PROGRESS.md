@@ -9,10 +9,48 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 | Surface | Status | Evidence or next proof |
 | --- | --- | --- |
 | Conary fixture experiments | Implemented in Conary; draft under review | Real package sequences, independent checks, concrete replay and bounded reduction |
-| Reusable Redshirt core | Extraction pending | Establish the smallest interface needed by a second real application |
-| Browser gameplay adapter | Planned | One bounded scenario through ordinary controls, with player-visible observations and independently checked results |
-| Comparative mechanics research | Planned | One unresolved question with versioned observations and explicit provenance |
+| External Redshirt runner | Implemented; PR #4 merged | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
+| Browser gameplay adapter | Bounded private proof implemented | Ordinary movement, inspection and held transfers; independent checks and model-free replay |
+| Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
 | Remote coordinator and additional providers | Future work | No implementation or deployment claimed |
+
+## 2026-09-20 — external browser runner and transfer comparison
+
+[Redshirt PR #4](https://github.com/FieldmouseWorks/redshirt/pull/4) is merged at
+`56200ffffa3fb644f4b9a62fe04e1590f750abd1`, preserving implementation head
+`1aea8e6379897a94da5ed5b11f750a91ba4ef571`. The standalone Python runner owns
+candidate validation, budgets, cancellation, bounded evidence and concrete replay.
+Adapters retain environment integration, setup, observations and independent
+checks. Normal gameplay needs no runner, model, credentials or network provider.
+Conary's Rust implementation is unchanged and has not been migrated.
+
+At the implementation head, the local and hosted public synthetic suites passed
+16 tests. The private browser proof passed 14 focused checks for movement,
+inspection, stale/busy refusal, cancellation, hidden-state exclusion and a timing
+negative control. A follow-up transfer slice passed 15 new checks plus a rerun of
+the original 14. Four fixed transfer traces replayed with zero selector requests
+and matching independent inventory/timing checks. Labelled lost-transfer and
+shorter-timer controls were independently detected.
+
+The follow-up application's existing local gates passed 1,009 default and 1,025
+browser checks, with zero failures; the latter ran 12 suites. Its hosted default
+lane passed 996 checks and skipped browser coverage. These counts belong to the
+recorded runs, not a new execution caused by this documentation update.
+All 35 follow-up evidence bundles passed manifests and per-episode bounds.
+
+A separately versioned installed reference supplied three transfer observations
+with overlapping readiness intervals. No speed advantage was detected for that
+path. Its inventory presentation was restored; input/network/client delay,
+unavailable server item IDs and lack of reset constrain the result. No native
+executable-replay or historical-fidelity claim follows. All game/reference assets,
+private source, client settings and captures stay outside this public repository.
+See the [first proof update](https://github.com/FieldmouseWorks/redshirt/issues/1#issuecomment-5746185568)
+and [transfer update](https://github.com/FieldmouseWorks/redshirt/issues/1#issuecomment-5746419667).
+
+No live model was used in either browser slice. Earlier live-model allowances
+remain closed; a future comparison needs a meaningful selection task, fixed
+baseline and new concrete usage authorization. Next: a bounded unresolved input
+or action-timing boundary. Cross-language Conary consolidation remains separate.
 
 ## 2026-09-20 — Conary exploration and model-free replay
 
@@ -73,18 +111,14 @@ the raw response. Approximation never grants execution authority.
   investigated but not reproduced by these fixtures. Bootable generation
   activation is outside the inert fixture corpus.
 
-### Next application
+### Follow-up ownership
 
-Prepare one bounded browser-play and mechanics-research experiment. Reuse the
-existing game's input and rule authority. Keep player-visible observations
-separate from privileged evaluator state; record concrete actions and stop on
-stale state, exhausted budgets or operator intervention.
-
-Extract common controller/provider/evidence behavior into Redshirt only when
-both applications demonstrate the need. Keep game rules and package semantics
-in their adapters. A modern reference implementation can supply observations
-and hypotheses with explicit provenance; it cannot by itself establish what a
-historical version did. No game adapter or research result is implemented here yet.
+The browser proof above now supplies the second application. The standalone
+Python runner owns its common controller/provider/evidence behavior; Conary still
+uses its earlier Rust implementation. Consolidation must preserve Conary's
+existing proofs and keep package semantics and game rules in their adapters.
+A modern reference implementation supplies versioned observations, never sole
+authority for historical behavior.
 
 ## Adding an update
 
