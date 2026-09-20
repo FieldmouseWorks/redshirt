@@ -15,21 +15,22 @@ not a new runtime capability or another provider experiment.
 | Surface | Status | Evidence or next proof |
 | --- | --- | --- |
 | Conary fixture experiments | Implemented in Conary; draft under review | Real package sequences, independent checks, concrete replay and bounded reduction |
-| External Redshirt runner | Implemented; PR #4 merged, attached-session refinement in draft #6 | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
+| External Redshirt runner | Implemented; PRs #4 and #6 merged | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
 | Browser gameplay adapter | Bounded private player API implemented | Broad visible choices, ordinary controls, independent checks and model-free replay |
 | Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
-| Optional Jev provider | Native Rust batches/abstention implemented for #15; Python draft #8 retained | Bounded typed questions, complete action menus and receipts; live usefulness/calibration pending |
+| Optional Jev provider | Python PR #8 merged; native Rust batches/abstention in draft #16 | Bounded typed questions, complete action menus and receipts; live usefulness/calibration pending |
 | Remote coordinator and further providers | Future work | No implementation or deployment claimed |
-| Rust controller and adapter process | First bounded parity proof implemented; issue #9 | Existing browser adapter under one Rust owner, scripted/mock decisions and cross-runtime concrete replay |
-| Rust external JSON sessions | Implemented; issue #11 | Existing client/wire contract, role-filtered adapter views, cancellation and finite fractional replay digests |
+| Rust controller and adapter process | PR #10 merged; issue #9 completed | Existing browser adapter under one Rust owner, scripted/mock decisions and cross-runtime concrete replay |
+| Rust external JSON sessions | PR #12 merged; issue #11 completed | Existing client/wire contract, role-filtered adapter views, cancellation and finite fractional replay digests |
 
 ## 2026-09-20 — native Rust decision batches and confidence abstention
 
 [Issue #15](https://github.com/FieldmouseWorks/redshirt/issues/15), implementation
 `088bf92621e4d76894547e796397e948a0f11b58`, adds shared Rust question/answer types,
 batch validation, caller-configured confidence policy and native optional Jev
-HTTPS. It stacks on the existing Rust/controller documentation drafts; this is
-not a claim that the stack has merged. See [the provider contract](JEV-RUST.md).
+HTTPS. It builds on the now-merged Rust controller and consumer workflow;
+[draft PR #16](https://github.com/FieldmouseWorks/redshirt/pull/16) remains separate
+from that integration. See [the provider contract](JEV-RUST.md).
 
 One request carries the full current action Choice and up to seven independent
 Choice/Score/Noul questions against the same authorized observation. Additional
@@ -57,6 +58,31 @@ Implementation and review were kept in the parent session after owner steering;
 no delegated findings were adopted. No live Jev calls, threshold calibration,
 consumer migration, merge or deployment occurred. These results establish the
 shared Rust mechanism; model usefulness still requires its own bounded comparison.
+
+## 2026-09-20 — reviewed runtime stack merged
+
+The owner authorized integration and cleanup. PRs #6, #8, #10 and #12 are merged
+in dependency order; runtime main is `60978f79165b5a693ea6cd2876a628b90979b0c8`,
+with the same tree as the tested implementation
+`2526c5745318e727bafe2e9895d516c4c275e89a`. Each merge checked the destination,
+expected head, hosted checks and resulting tree; merge commits retain ancestry.
+Historical entries below describe their original revisions and draft status.
+
+Fresh local verification of that implementation passed nine Rust tests,
+`cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`, and
+50 Python tests with `REDSHIRT_BIN` set (no skips). The first Python invocation
+omitted that variable and skipped 14 process tests; the complete rerun passed.
+Fresh consumer checks passed 30 gameplay and 46 JSON integration assertions,
+including role filtering, negative controls, concrete replay with zero provider
+calls, and successful process exit. Raw consumer evidence remains private.
+
+This was self-review, with no delegated worker or live provider use. Existing
+failed-target budgets and implementation limits remain in force. Documentation
+PR #14 records the consumer workflow and this integration result. Optional Rust
+decision batching in [issue #15](https://github.com/FieldmouseWorks/redshirt/issues/15)
+is separate, unmerged work; current consumers do not depend on it. The next
+consumer improvement can use the merged boundary without waiting for another
+provider experiment. No release, deployment or model-quality claim is made.
 
 ## 2026-09-20 — external JSON sessions under Rust
 
