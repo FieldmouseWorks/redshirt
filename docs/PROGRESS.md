@@ -15,6 +15,37 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 | Optional Jev provider | Draft #8, mock/default verified | Bounded Choice transport, raw receipts and usage; new live comparison pending |
 | Remote coordinator and further providers | Future work | No implementation or deployment claimed |
 
+## 2026-09-20 — local JSON interaction and capability-filtered clients
+
+[Draft PR #8](https://github.com/FieldmouseWorks/redshirt/pull/8), implementation
+head `235fdc0889e9d58c5f7aabdab3ef7ede7c3b1246`, adds a persistent local JSON-lines
+interface and async client. External tools receive the adapter's authorized
+observation and a current action schema, then return one ID. The existing runner
+retains budgets, freshness, independent checks, evidence and replay. No parallel
+controller or network listener was added. See [the protocol](INTERACTION.md).
+
+All37 public tests passed, including real subprocess pipes, stale/prequeued and
+malformed replies, disconnect/cancellation, failed effects and zero-provider
+replay. The first run's two subprocess import-path errors were corrected in the
+test fixture. Both [hosted lanes](https://github.com/FieldmouseWorks/redshirt/actions/runs/35486316132)
+passed at the implementation head.
+
+The private integration passed44 API checks,30 focused checks and its1,026-check
+browser gate. Five player traces replayed without a model while screenshot and
+observation-time pixel reads were forbidden. Scoped observer, player, support,
+tester and GM sessions exposed their permitted tools; unsupported actor control
+refused access. Domain roles and data projections stay in that private adapter.
+Normal UI pixels matched the pinned baseline; missing input, forbidden roles and
+an unrelated repaint were negative controls. A missing-hover checker type error
+was retained and corrected before the final pass.
+
+No live model, separate worker/reviewer, deployment or merge occurred. These are
+local capability gates, not remote account authentication. The owner then accepted
+a [Rust shared core with flexible integrations](ARCHITECTURE.md). The Python proof
+and its model-neutral wire contract remain the migration baseline. Next is a
+bounded Rust parity proof using the existing adapter, before retiring any controller
+or expanding shared machinery. No Rust migration is claimed by this draft.
+
 ## 2026-09-20 — bounded Jev provider and ordinary gameplay choices
 
 [Draft PR #8](https://github.com/FieldmouseWorks/redshirt/pull/8), implementation

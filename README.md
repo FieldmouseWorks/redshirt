@@ -14,6 +14,10 @@ arbitrary commands or decide whether their own actions were correct.
 
 ## Status
 
+The accepted [architecture direction](docs/ARCHITECTURE.md) is a Rust shared core
+with flexible language-neutral integrations. The Python runner below is the
+verified migration baseline; no Rust cutover is claimed yet.
+
 Early development. The first implementation lives in Conary's existing
 `conary-test` harness and is under review in
 [Conary PR #1051](https://github.com/FieldmouseWorks/Conary/pull/1051).
