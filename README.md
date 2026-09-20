@@ -20,8 +20,26 @@ Early development. The first implementation lives in Conary's existing
 It supports scripted calibration, seeded exploration, optional Jev selection,
 saved-operation replay, evidence reports and bounded trace reduction.
 
-This repository is the home for the reusable Redshirt implementation. The shared
-core has not yet been extracted, and there is no standalone runner to install here.
+This repository now also contains a small standalone Python runner for external
+adapters. It owns candidate validation, budgets, cancellation, evidence and
+concrete replay; adapters own their environments and independent checks. Default
+execution and replay use no model or credentials. See the [browser slice](docs/BROWSER-SLICE.md)
+for the API, verification and remaining limits.
+
+The Conary Rust implementation has not been migrated to this Python boundary.
+Cross-language consolidation remains open; this is not a claim of one shared
+implementation across both applications yet.
+
+Run the synthetic contract checks with Python 3.11 or newer:
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+For a local adapter, put this checkout on `PYTHONPATH` or install it in the
+adapter's virtual environment with `python -m pip install -e /path/to/redshirt`.
+There is no network provider in this slice. The mock transport accepts an
+explicitly supplied asynchronous callable and has no fallback or retries.
 
 Follow [progress and measured results](docs/PROGRESS.md) and the
 [public progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1).
@@ -38,9 +56,9 @@ Follow [progress and measured results](docs/PROGRESS.md) and the
 - Report product failures, expected refusals, negative controls, harness failures
   and inconclusive evidence separately.
 
-Conary testing is the first application. Game playtesting, research and art
-iteration are intended later applications. Remote coordination and additional
-adapters are future work.
+Conary testing is the first application. Game playtesting now has a bounded
+external proof; broader research, art iteration, remote coordination and
+additional adapters remain future work.
 
 ## License
 
