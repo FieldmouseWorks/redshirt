@@ -15,6 +15,43 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 | Optional Jev provider | Draft #8, mock/default verified | Bounded Choice transport, raw receipts and usage; new live comparison pending |
 | Remote coordinator and further providers | Future work | No implementation or deployment claimed |
 | Rust controller and adapter process | First bounded parity proof implemented; issue #9 | Existing browser adapter under one Rust owner, scripted/mock decisions and cross-runtime concrete replay |
+| Rust external JSON sessions | Implemented; issue #11 | Existing client/wire contract, role-filtered adapter views, cancellation and finite fractional replay digests |
+
+## 2026-09-20 — external JSON sessions under Rust
+
+[Issue #11](https://github.com/FieldmouseWorks/redshirt/issues/11) moves external
+decision sessions onto the same Rust owner through `--stdio`. The existing
+Python client, observation/tool schema and decision/done envelopes are unchanged.
+Unix asynchronous pipes allow cancellation and timeout with stdin still open;
+partial frames and interrupted decision receipts survive cancellation. There is
+no second controller, network listener or added environment authority.
+
+Nine Rust tests and50 Python tests pass, including exact wire comparison against
+the Python baseline, malformed/stale/prequeued replies, EOF, SIGINT, deadlines,
+failed effects and concrete replay. Fmt/clippy pass. An independent Python JSON
+oracle checks finite samples from16,384 seeded binary64 patterns and numeric edge
+cases. Finite fractional views now preserve Python-compatible v1 hashes without
+rounding; the prior integer-only restriction is superseded. Integer traces remain
+compatible. Arbitrary precision and normalized real-time replay are not claimed.
+
+The existing private browser scenario passes30 gameplay/role checks and46 focused
+cutover checks. Player wire projections match the explicit Python baseline
+apart from random tokens; five ordinary actions still cost seven input units and
+six choices. All available role launchers run under Rust. Fractional diagnostics
+retain their values and grants. Omitted movement fails independent checking;
+stale/changed-role choices and role injection refuse before input. Hidden-state
+changes leave the complete authorized session projection identical. Cross-runtime
+player replay has zero provider calls;111 episode artifact hashes match.
+
+One public fixture repair corrected the stale mutation point; its failed log is
+retained privately. The first browser verifier emitted child-watcher warnings
+on redundant close-time signalling after process exit. Dedicated sessions await
+and record normal exit, including every available role. No client change or game
+rule change was required. Self-review only; no delegated reviewer, live model
+call or native-client observation. Optional captures and other callers remain on
+their explicit baselines; Conary is unchanged. Next: review the stacked drafts
+and use this same boundary for the pending bounded provider comparison when new
+live usage is authorized.
 
 ## 2026-09-20 — Rust controller ownership
 

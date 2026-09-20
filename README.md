@@ -16,8 +16,9 @@ arbitrary commands or decide whether their own actions were correct.
 
 The accepted [architecture direction](docs/ARCHITECTURE.md) is a Rust shared core
 with flexible language-neutral integrations. The first [Rust controller and
-adapter process boundary](docs/RUST-ADAPTER.md) now runs bounded episodes and
-concrete replay. The Python runner below remains the transition baseline for
+adapter process boundary](docs/RUST-ADAPTER.md) now runs bounded episodes,
+external JSON decision sessions and concrete replay. The existing Python client
+works unchanged. The Python runner below remains the transition baseline for
 existing callers; migration of all callers/providers is not complete.
 
 Early development. The first implementation lives in Conary's existing
@@ -50,7 +51,7 @@ model-free selectors remain available without network access or credentials.
 
 The [local JSON interface](docs/INTERACTION.md) lets an external LLM/tool handler
 or script receive structured observations and current action schemas, then choose
-one ID. It uses the same runner and supports zero-capture gameplay and replay.
+one ID. Rust `--stdio` owns the episode and supports zero-capture gameplay and replay.
 Project adapters assign roles and filter their own information and controls.
 
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.

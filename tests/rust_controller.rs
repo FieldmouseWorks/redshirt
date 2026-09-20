@@ -343,7 +343,11 @@ fn strict_json_and_portable_view_profile() {
         String::from_utf8(encoded(&json!({"z":"é😀","a":1})).unwrap()).unwrap(),
         r#"{"a":1,"z":"\u00e9\ud83d\ude00"}"#
     );
-    assert!(view_digest(&json!({"unsupported":0.2})).is_err());
+    // The integer-only restriction is superseded by the Python numeric oracle.
+    assert_eq!(
+        view_digest(&json!({"clock":0.2})).unwrap(),
+        sha256(b"{\"clock\":0.2}")
+    );
     assert!(
         Limits {
             captures: 1,
