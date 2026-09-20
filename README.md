@@ -15,8 +15,10 @@ arbitrary commands or decide whether their own actions were correct.
 ## Status
 
 The accepted [architecture direction](docs/ARCHITECTURE.md) is a Rust shared core
-with flexible language-neutral integrations. The Python runner below is the
-verified migration baseline; no Rust cutover is claimed yet.
+with flexible language-neutral integrations. The first [Rust controller and
+adapter process boundary](docs/RUST-ADAPTER.md) now runs bounded episodes and
+concrete replay. The Python runner below remains the transition baseline for
+existing callers; migration of all callers/providers is not complete.
 
 Early development. The first implementation lives in Conary's existing
 `conary-test` harness and is under review in

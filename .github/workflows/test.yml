@@ -3,6 +3,20 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
+      - run: cargo +1.98.0 fmt --all -- --check
+      - run: cargo +1.98.0 clippy --locked --all-targets -- -D warnings
+      - run: cargo +1.98.0 test --locked
+      - run: cargo +1.98.0 build --locked
+      - name: Verify real adapter pipes and Python/Rust replay
+        run: REDSHIRT_BIN="$PWD/target/debug/redshirt" python3 -m unittest discover -s tests -p test_rust_process.py -v
   synthetic:
     runs-on: ubuntu-24.04
     timeout-minutes: 5

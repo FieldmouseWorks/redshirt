@@ -3,7 +3,8 @@
 Accepted by the owner on2026-09-20: Rust where it fits the durable systems,
 with other languages retained for useful integration flexibility. This supersedes
 any assumption that the existing Python proof chooses the permanent core language.
-The migration has not yet been implemented.
+The first [Rust adapter-boundary proof](RUST-ADAPTER.md) is implemented. Existing
+Python callers and Conary's pilot have not all been migrated.
 
 ## Ownership and implementation boundary
 
@@ -45,3 +46,8 @@ A single resettable browser episode with identical independently checked outcome
 and zero-provider replay is the first integration acceptance check. Use synthetic
 failure/cancellation cases alongside it. No live model call or performance claim
 is required to establish language parity.
+
+The Rust process path owns its complete episode. Its Python worker only hosts
+adapter methods and optional provider transport. This path supports zero captures
+and the portable integer-view v1 replay profile. Existing interactive callers
+remain on the baseline until their own cutover checks pass.
