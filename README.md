@@ -14,6 +14,10 @@ arbitrary commands or decide whether their own actions were correct.
 
 ## Status
 
+The accepted [architecture direction](docs/ARCHITECTURE.md) is a Rust shared core
+with flexible language-neutral integrations. The Python runner below is the
+verified migration baseline; no Rust cutover is claimed yet.
+
 Early development. The first implementation lives in Conary's existing
 `conary-test` harness and is under review in
 [Conary PR #1051](https://github.com/FieldmouseWorks/Conary/pull/1051).
@@ -38,8 +42,14 @@ python3 -m unittest discover -s tests -v
 
 For a local adapter, put this checkout on `PYTHONPATH` or install it in the
 adapter's virtual environment with `python -m pip install -e /path/to/redshirt`.
-There is no network provider in this slice. The mock transport accepts an
-explicitly supplied asynchronous callable and has no fallback or retries.
+The optional [Jev provider](docs/JEV.md) adds pinned, bounded Choice selection
+with per-call evidence. It is explicitly enabled; the mock transport and ordinary
+model-free selectors remain available without network access or credentials.
+
+The [local JSON interface](docs/INTERACTION.md) lets an external LLM/tool handler
+or script receive structured observations and current action schemas, then choose
+one ID. It uses the same runner and supports zero-capture gameplay and replay.
+Project adapters assign roles and filter their own information and controls.
 
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never

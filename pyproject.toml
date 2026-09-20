@@ -8,6 +8,10 @@ version = "0.1.0"
 description = "Bounded external experiments with candidate-only decisions and concrete replay"
 requires-python = ">=3.11"
 license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+
+[project.optional-dependencies]
+jev = ["httpx==0.28.1"]
 
 [tool.setuptools]
 packages = ["redshirt"]
