@@ -41,6 +41,9 @@ adapter's virtual environment with `python -m pip install -e /path/to/redshirt`.
 There is no network provider in this slice. The mock transport accepts an
 explicitly supplied asynchronous callable and has no fallback or retries.
 
+Follow [progress and measured results](docs/PROGRESS.md) and the
+[public progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1).
+
 ## Direction
 
 - Keep controller, environment, evaluator and decision-provider interfaces small
