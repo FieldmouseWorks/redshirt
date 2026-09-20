@@ -274,6 +274,50 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([await first.select(request) for _ in range(10)],
                          [await second.select(request) for _ in range(10)])
 
+    async def test_attached_setup_is_successful_but_never_reset_or_replayable(self):
+        env = Fixture()
+        env.setup_mode = 'attach'
+        folder = self.output()
+        report = await run(env, folder, provider=Scripted(['increment', 'stop']))
+        self.assertEqual(report['stop'], 'selector_stop')
+        self.assertTrue(report['setup_verified'] and report['final']['ok'] and report['cleanup'])
+        self.assertEqual(report['setup_mode'], 'attach')
+        self.assertFalse(report['reset_verified'] or report['replayable'])
+        saved = json.loads((folder / 'replay.json').read_text())
+        self.assertEqual(len(saved['steps']), 1)  # Evidence stays inspectable.
+        self.assertFalse(saved['complete'])
+
+        # Even a forged completeness flag cannot grant an attached adapter reset.
+        saved['complete'] = True
+        repeated = Fixture()
+        repeated.setup_mode = 'attach'
+        async def forbidden_setup():
+            self.fail('Attached replay called setup')
+        repeated.reset = forbidden_setup
+        report = await self.checked_run(repeated, replay=saved)
+        self.assertEqual(report['stop'], 'replay_unavailable')
+        self.assertEqual(report['attempted_inputs'], 0)
+        self.assertEqual(report['requests'], 0)
+        self.assertFalse(report['setup_verified'] or report['replay_complete'])
+
+    async def test_setup_capability_change_refuses_before_input(self):
+        env = Fixture()
+        async def transport(request):
+            env.setup_mode = 'attach'
+            return b'{"candidate_id":"increment"}'
+        report = await self.checked_run(env, provider=MockTransport(transport))
+        self.assertEqual(report['stop'], 'identity_changed')
+        self.assertEqual(report['attempted_inputs'], 0)
+        self.assertFalse(report['replayable'])
+
+    async def test_unknown_setup_capability_is_invalid_configuration(self):
+        env = Fixture()
+        env.setup_mode = 'guess'
+        folder = self.output()
+        with self.assertRaisesRegex(ValueError, 'invalid_setup_mode'):
+            await run(env, folder, provider=Scripted(['increment']))
+        self.assertFalse(folder.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

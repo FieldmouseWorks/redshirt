@@ -9,10 +9,33 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 | Surface | Status | Evidence or next proof |
 | --- | --- | --- |
 | Conary fixture experiments | Implemented in Conary; draft under review | Real package sequences, independent checks, concrete replay and bounded reduction |
-| External Redshirt runner | Implemented; PR #4 merged | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
+| External Redshirt runner | Implemented; PR #4 merged, attached-session refinement in draft #6 | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
 | Browser gameplay adapter | Bounded private proof implemented | Ordinary movement, inspection and held transfers; independent checks and model-free replay |
 | Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
 | Remote coordinator and additional providers | Future work | No implementation or deployment claimed |
+
+## 2026-09-20 — attachment and replay capability
+
+[Draft PR #6](https://github.com/FieldmouseWorks/redshirt/pull/6), implementation
+head `ebd9ab9a81d718b6d9952dc7eec758310a484e45`, separates verified attachment to
+an existing session from a resettable environment. Attached runs keep bounded
+execution and mandatory checks but cannot emit a complete replay claim. Even a
+forged complete trace is refused before setup/input. Existing resettable adapters
+and v1 traces remain compatible.
+
+`python3 -m unittest discover -s tests -v` passed 19 public synthetic tests. A
+private integration passed eight fake-I/O checks and replayed two existing local
+traces with zero selector requests. Its existing drag suite passed 107 checks,
+including labelled mutants. A versioned reference accepted one held-input boundary
+that the local baseline refuses; the contradiction, a successful ready control,
+setup refusals and restored inventory are retained privately. Capture timing
+within the gesture and historical equivalence remain unresolved. No gameplay
+rule changed, and native observations have no executable-reset/replay claim.
+
+The completed documentation/controller PRs #2/#4 are merged. Retired worktrees and
+branches were removed after their evidence was preserved. No live model usage or
+new allowance; no separate reviewer. Next: distinguish immediate capture from
+capture on the first movement after readiness in one bounded private protocol.
 
 ## 2026-09-20 — external browser runner and transfer comparison
 
