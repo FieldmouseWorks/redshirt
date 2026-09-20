@@ -3,6 +3,11 @@
 The probability-total acceptance policy in `redshirt/jev.py` follows the Conary
 pilot at commit `4278a9202f2bc87f58d54547f5c03e37cf14d26f`,
 [`apps/conary-test/src/explorer/jev/choice.rs`](https://github.com/FieldmouseWorks/Conary/blob/4278a9202f2bc87f58d54547f5c03e37cf14d26f/apps/conary-test/src/explorer/jev/choice.rs).
+The Rust controller in `src/controller.rs` also adapts the admission, dispatch
+revalidation, uncertain-attempt accounting and mandatory-finalization invariants
+demonstrated by `controller.rs` and `contract.rs` at that same Conary revision.
+The existing standalone Python runner supplies the v1 external-adapter/replay
+contract. No Conary package action types, Oracle or fixtures are imported.
 Conary's Rust integration remains unchanged. The tolerance is explicit consumer
 policy; values are retained without normalization. Applicable MIT notice:
 

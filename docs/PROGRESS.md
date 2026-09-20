@@ -14,6 +14,39 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 | Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
 | Optional Jev provider | Draft #8, mock/default verified | Bounded Choice transport, raw receipts and usage; new live comparison pending |
 | Remote coordinator and further providers | Future work | No implementation or deployment claimed |
+| Rust controller and adapter process | First bounded parity proof implemented; issue #9 | Existing browser adapter under one Rust owner, scripted/mock decisions and cross-runtime concrete replay |
+
+## 2026-09-20 — Rust controller ownership
+
+[Issue #9](https://github.com/FieldmouseWorks/redshirt/issues/9) adds the Rust
+library/executable and [trusted adapter method boundary](RUST-ADAPTER.md). Rust
+owns budgets, freshness, uncertain-attempt accounting, final checks, evidence and
+replay. Python hosts adapter methods and the optional existing provider transport;
+it never runs a second controller in this path. Conary's demonstrated admission
+and finalization invariants retain their MIT provenance, without domain types.
+
+Seven Rust tests and43 Python tests passed, including six real-pipe cases.
+Checks cover Stop, stale/busy refusal, cancellation before and during input,
+cancelled-provider receipts, uncertain attempts, attached-session restrictions,
+negative effects, artifact hashes and replay in both directions. Self-review
+added failing controls for a changed reset capability on Stop and a v1 control-
+character encoding mismatch; both pass after one repair cycle. Clippy and fmt
+passed. No separate reviewer or delegated worker was used.
+
+The existing private browser scenario passed18 focused checks under the corrected
+binary. Scripted Rust and injected Jev mock selection match the Python baseline's
+five ordinary actions, seven input units, six choices and independent outcomes.
+Rust replay and Python/Rust cross-replays consult no provider. Omitted movement
+is independently detected; stale/changed-role choices refuse; hidden-state
+changes leave the outbound request identical. No captures or live model calls.
+
+This proves one controller boundary, not a completed migration of every caller.
+The first Rust path requires zero captures and integer-valued observation JSON
+for portable v1 replay hashes. Existing interactive callers and Conary remain on
+their respective baselines. Game authority, private source/assets and installed
+clients remain outside Redshirt. Model usefulness and historical fidelity are
+separate questions. Next: move the existing selector-facing JSON session onto
+this proven Rust owner while preserving its client contract.
 
 ## 2026-09-20 — local JSON interaction and capability-filtered clients
 
