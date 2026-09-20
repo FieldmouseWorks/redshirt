@@ -18,10 +18,33 @@ not a new runtime capability or another provider experiment.
 | External Redshirt runner | Implemented; PRs #4 and #6 merged | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
 | Browser gameplay adapter | Bounded private player API implemented | Broad visible choices, ordinary controls, independent checks and model-free replay |
 | Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
-| Optional Jev provider | Python PR #8 merged; native Rust batches/abstention in draft #16 | Bounded typed questions, complete action menus and receipts; live usefulness/calibration pending |
+| Optional Jev provider | Python PR #8 and native Rust PR #16 merged | Bounded typed questions, complete action menus and receipts; calibrated policy pending |
 | Remote coordinator and further providers | Future work | No implementation or deployment claimed |
 | Rust controller and adapter process | PR #10 merged; issue #9 completed | Existing browser adapter under one Rust owner, scripted/mock decisions and cross-runtime concrete replay |
 | Rust external JSON sessions | PR #12 merged; issue #11 completed | Existing client/wire contract, role-filtered adapter views, cancellation and finite fractional replay digests |
+
+## 2026-09-20 — native provider merged; bounded comparison runner
+
+The owner authorized the next comparison slice. PR #16 merged at
+`e5921928f12097afd037ee577c41bb19653573df` after self-review and all six hosted
+checks passed at exact head `9e846a2fc79839791ff150d3fa06077d76d08724`.
+Its earlier implementation and proof remain recorded below.
+
+[Issue #17](https://github.com/FieldmouseWorks/redshirt/issues/17) adds a bounded
+[Rust comparison runner](COMPARISON.md). Consumers supply fixed cases, visible-only
+baselines and independent task labels. Rust checks matching initial requests
+before model dispatch, reserves the whole campaign and each live case, retains
+failure evidence, and reports task completion separately from invariant checks.
+Confidence counts keep calibration and held-out cases separate and make no
+counterfactual completion or calibrated-probability claim. The default uses local
+manufactured responses and no key; live use remains explicitly bounded.
+
+Self-review validation: 27 default Rust tests and 28 native-feature tests pass,
+including five new comparison tests; both clippy modes and fmt pass. The existing
+50 Python tests pass with one optional HTTPX test skipped locally. A private
+four-case browser integration passes all eight baseline/mock episodes; its
+independent goal, ordinary-input negative controls and zero-model replay remain
+consumer-owned evidence. No delegated worker was used.
 
 ## 2026-09-20 — native Rust decision batches and confidence abstention
 

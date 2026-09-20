@@ -62,6 +62,10 @@ or script receive structured observations and current action schemas, then choos
 one ID. Rust `--stdio` owns the episode and supports zero-capture gameplay and replay.
 Project adapters assign roles and filter their own information and controls.
 
+The [Rust comparison runner](docs/COMPARISON.md) pairs consumer-owned baselines
+with the optional provider across fixed cases, with independent task metrics,
+campaign-wide reservations and separate held-out confidence counts.
+
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never
 reported as a reset. Their evidence is explicitly nonreplayable; replay is refused
