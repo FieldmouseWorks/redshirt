@@ -8,10 +8,69 @@ use std::{
     path::{Path, PathBuf},
 };
 
+// Python's JSON encoder uses shortest round-trip digits with different notation
+// thresholds from serde_json. Preserve the value and its float/integer type.
+struct PythonJson;
+impl serde_json::ser::Formatter for PythonJson {
+    fn write_f64<W: ?Sized + Write>(&mut self, writer: &mut W, value: f64) -> std::io::Result<()> {
+        let number = serde_json::Number::from_f64(value)
+            .ok_or_else(|| std::io::Error::other("nonfinite"))?;
+        if value == 0.0 {
+            return writer.write_all(if value.is_sign_negative() {
+                b"-0.0"
+            } else {
+                b"0.0"
+            });
+        }
+        let raw = number.to_string();
+        let (sign, unsigned) = if let Some(s) = raw.strip_prefix('-') {
+            ("-", s)
+        } else {
+            ("", raw.as_str())
+        };
+        let (mantissa, exponent) = if let Some((m, e)) = unsigned.split_once('e') {
+            (m, e.parse::<i32>().expect("JSON number exponent"))
+        } else {
+            (unsigned, 0)
+        };
+        let mut point = mantissa.find('.').unwrap_or(mantissa.len()) as i32 + exponent;
+        let digits = mantissa.replace('.', "");
+        let leading = digits.len() - digits.trim_start_matches('0').len();
+        point -= leading as i32;
+        let digits = digits[leading..].trim_end_matches('0');
+        let exponent = point - 1;
+        let body = if !(-4..16).contains(&exponent) {
+            let tail = if digits.len() > 1 {
+                format!(".{}", &digits[1..])
+            } else {
+                String::new()
+            };
+            format!("{}{tail}e{exponent:+03}", &digits[..1])
+        } else if point <= 0 {
+            format!("0.{}{digits}", "0".repeat((-point) as usize))
+        } else if point as usize >= digits.len() {
+            format!("{digits}{}.0", "0".repeat(point as usize - digits.len()))
+        } else {
+            format!(
+                "{}.{}",
+                &digits[..point as usize],
+                &digits[point as usize..]
+            )
+        };
+        write!(writer, "{sign}{body}")
+    }
+}
+
 pub fn encoded(value: &impl Serialize) -> Result<Vec<u8>> {
-    // Sorted object keys and ASCII escapes match Python's v1 integer-view profile.
+    // Sorted object keys, finite binary64 numbers and ASCII escapes match Python v1.
     let value = serde_json::to_value(value).map_err(|_| Stop::from("invalid_json"))?;
-    let utf8 = serde_json::to_string(&value).map_err(|_| Stop::from("invalid_json"))?;
+    let mut bytes = vec![];
+    value
+        .serialize(&mut serde_json::Serializer::with_formatter(
+            &mut bytes, PythonJson,
+        ))
+        .map_err(|_| Stop::from("invalid_json"))?;
+    let utf8 = String::from_utf8(bytes).map_err(|_| Stop::from("invalid_json"))?;
     let mut out = String::new();
     for ch in utf8.chars() {
         if (ch as u32) < 127 {
@@ -29,15 +88,6 @@ pub fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 pub fn view_digest(view: &Value) -> Result<String> {
-    fn portable(v: &Value) -> bool {
-        match v {
-            Value::Number(n) => n.is_i64() || n.is_u64(),
-            Value::Array(a) => a.iter().all(portable),
-            Value::Object(o) => o.values().all(portable),
-            _ => true,
-        }
-    }
-    require(portable(view), "nonportable_view_number")?;
     Ok(sha256(&encoded(view)?))
 }
 pub fn load(path: &Path, limit: usize) -> Result<Value> {

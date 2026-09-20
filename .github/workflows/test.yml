@@ -16,7 +16,7 @@ jobs:
       - run: cargo +1.98.0 test --locked
       - run: cargo +1.98.0 build --locked
       - name: Verify real adapter pipes and Python/Rust replay
-        run: REDSHIRT_BIN="$PWD/target/debug/redshirt" python3 -m unittest discover -s tests -p test_rust_process.py -v
+        run: REDSHIRT_BIN="$PWD/target/debug/redshirt" python3 -m unittest discover -s tests -p 'test_rust_*.py' -v
   synthetic:
     runs-on: ubuntu-24.04
     timeout-minutes: 5

@@ -48,6 +48,7 @@ failure/cancellation cases alongside it. No live model call or performance claim
 is required to establish language parity.
 
 The Rust process path owns its complete episode. Its Python worker only hosts
-adapter methods and optional provider transport. This path supports zero captures
-and the portable integer-view v1 replay profile. Existing interactive callers
-remain on the baseline until their own cutover checks pass.
+adapter methods and optional provider transport. The existing JSON decision
+contract and unchanged Python client now run against that same owner, including
+finite fractional observations and v1 replay. This path requires zero captures;
+other callers retain their explicit baseline until their cutover checks pass.

@@ -17,11 +17,23 @@ async def main():
         env.setup_mode = 'attach'
     if mode == 'busy':
         env.ready = False
-    if mode == 'unicode':
+    if mode in ('unicode', 'fractional'):
         original = env.observe
         async def observe():
             obs = await original()
-            return Observation(obs.environment, obs.epoch, obs.guard, {**obs.view, 'label': 'é😀'}, obs.ready, obs.terminal)
+            extra = {'label': 'é😀'} if mode == 'unicode' else {'clock': 0.2, 'negative_zero': -0.0, 'large': 1e16}
+            return Observation(obs.environment, obs.epoch, obs.guard, {**obs.view, **extra}, obs.ready, obs.terminal)
+        env.observe = observe
+    if mode == 'stdio-stale':
+        original = env.observe
+        observations = 0
+        async def observe():
+            nonlocal observations
+            observations += 1
+            # Baseline, offered frame, then the controller's pre-input recheck.
+            if observations == 3:
+                env.revision += 1
+            return await original()
         env.observe = observe
     if mode in ('uncertain', 'slow-execute'):
         original = env.execute

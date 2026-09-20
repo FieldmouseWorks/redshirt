@@ -3,6 +3,7 @@
 pub mod contract;
 pub mod controller;
 pub mod evidence;
+pub mod interaction;
 pub mod process;
 pub use contract::*;
 pub use controller::run;

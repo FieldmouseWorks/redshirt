@@ -1,11 +1,27 @@
 # Local structured interaction
 
-`redshirt.interaction` connects any external decision system to the existing
-runner through JSON lines on local pipes. A scripted client, an LLM tool handler
+The Rust executable's `--stdio` mode connects external decision systems to the
+controller through JSON lines on local pipes. The existing Python
+`redshirt.interaction.InteractionClient` is unchanged. A scripted client, an LLM tool handler
 or a decision model sees the same adapter-audited observation and choices. No
 image, network server, model SDK or credential is required by this transport.
 
-An adapter CLI can expose an episode with:
+Build with `cargo build --locked`, then supply trusted adapter arguments through
+the [method boundary](RUST-ADAPTER.md). For example:
+
+```python
+from redshirt.interaction import InteractionClient
+
+async with await InteractionClient.start(
+    "/path/to/redshirt", "--stdio", "--output", "/tmp/new-episode",
+    "--adapter", "python3", "tests/rust_fixture.py", "normal"
+) as client:
+    await client.act("increment")
+    done = await client.act("stop")
+```
+
+The legacy Python controller remains an explicit migration baseline. An adapter
+CLI can still select it with:
 
 ```python
 from redshirt.interaction import serve_stdio
@@ -13,7 +29,7 @@ from redshirt.interaction import serve_stdio
 report = await serve_stdio(adapter, fresh_output_directory, cancel=cancel_event)
 ```
 
-The caller creates the adapter, chooses its permissions and handles SIGINT by
+For that legacy entrypoint, the caller creates the adapter, chooses its permissions and handles SIGINT by
 setting the cancellation event. Stdout belongs exclusively to the protocol.
 Diagnostics belong on stderr; full reports, checks and replay remain in the
 private evidence directory. Capture limit defaults to zero for this entry point.

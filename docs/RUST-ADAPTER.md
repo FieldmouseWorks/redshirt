@@ -2,8 +2,9 @@
 
 Rust owns admission, budgets, candidate binding, cancellation, evidence and
 concrete replay. The adapter process implements environment methods; it never
-runs the Python controller underneath Rust. The Python runner and selector-facing
-JSON API remain the transition baseline for callers not yet migrated. Conary's
+runs the Python controller underneath Rust. The selector-facing JSON API now also
+uses Rust through `--stdio`, with the unchanged Python client. The Python runner
+remains the explicit transition baseline for other callers. Conary's
 existing Rust pilot is unchanged.
 
 ## Synthetic example
@@ -28,8 +29,9 @@ small terminal summary. Argv, paths, scripts, limits and provider configuration
 are host configuration, never selector output. No shell interpretation, network
 listener or model credential lookup is implemented by the executable.
 
-Choose exactly one of `--script PATH`, `--remote-provider`, `--replay PATH`.
-`--limits PATH` reads a bounded JSON Limits object. Rust callers use Adapter and
+Choose exactly one of `--script PATH`, `--remote-provider`, `--replay PATH`,
+`--stdio`. `--limits PATH` or `--limits-json JSON` reads a bounded JSON Limits
+object (at most4096 bytes; mutually exclusive). Rust callers use Adapter and
 Provider traits, signal the cancellation token, and await finalization rather
 than aborting the entire run future. The executable maps SIGINT to cancellation.
 
@@ -82,13 +84,32 @@ operations, matching view digests and independently checked outcomes. Attached
 sessions never grant reset/replay authority. Uncertain inputs remain reported
 and cannot produce a complete replay. The v1 replay shape is retained.
 
-The first cross-language profile accepts views with integer JSON numbers
-representable by serde_json, sorted object keys and Python-compatible ASCII
-escapes. Floating-point view numbers refuse as nonportable_view_number instead
-of relying on unproven cross-runtime float canonicalization. Receipt/report
-timings may still be fractional. This covers the demonstrated adapter; general
-numeric canonicalization, captures and migration of interactive callers remain
-follow-up work.
+The v1 cross-language profile accepts serde_json's integer range and finite
+binary64 numbers, sorted object keys and Python-compatible ASCII escapes. A
+custom formatter preserves shortest round-trip float digits, signed zero and
+Python JSON's exponent notation. Parsing uses float_roundtrip. An independent
+Python JSON oracle checks edge cases and a seeded16,384-pattern float corpus;
+fractional synthetic views also replay under Python. This supersedes the initial
+integer-only restriction without changing existing integer trace hashes.
+It is not arbitrary-precision numeric canonicalization. Actual clock changes
+remain changes: a privileged time-bearing view can fail exact replay, and must
+not be rounded or normalized to manufacture agreement. Captures remain unavailable.
+
+## External decisions
+
+`--stdio` implements the existing [decision protocol](INTERACTION.md), separate
+from the trusted adapter method pipe. It requires Unix pipe stdin/stdout and
+refuses regular files or terminals; use the unchanged InteractionClient to create
+those pipes. Only observation/tool and done envelopes appear on stdout. The
+adapter worker runs beneath Rust; there is no nested Python controller.
+
+Decision tokens use16 OS-random bytes. Replies have exactly decision_id/action_id;
+duplicate keys, malformed/oversized frames, stale tokens and unavailable choices
+stop without retry. Decision receipts survive dropped futures. Partial outgoing
+frames retain their write offsets across cancellation. Unix asynchronous pipes
+allow timeout/SIGINT finalization even while the client's stdin remains open.
+After checks and child cleanup, sending the terminal envelope gets at most five
+seconds; missing delivery does not erase the report or change the game verdict.
 
 ## Verification
 
