@@ -1,4 +1,10 @@
-# Optional Jev Choice provider
+# Optional Jev providers
+
+The shared [Rust provider](JEV-RUST.md) supports typed batches and caller-configured
+confidence abstention, with optional native HTTPS. The Python implementation below
+remains a transition baseline for existing callers.
+
+## Python transition baseline
 
 Install the optional transport in the invoking application's virtual environment:
 
@@ -37,8 +43,8 @@ The sum tolerance is an explicit consumer policy: `abs(sum - 1) <= .01 + 1e-12`.
 Accepted probabilities retain their original values; no normalization, substituted
 choice or confidence threshold is applied. The receipt distinguishes exact and
 accepted approximate totals. This follows the Conary pilot with its retained
-[MIT notice and provenance](../THIRD_PARTY_NOTICES.md); the Rust integration has
-not been migrated.
+[MIT notice and provenance](../THIRD_PARTY_NOTICES.md). The native provider now owns
+the shared Rust boundary; existing Python callers have not all migrated.
 
 The shared runner drains one bounded `provider_receipt` after each selection,
 including failure or cancellation. It retains the exact request and digest,

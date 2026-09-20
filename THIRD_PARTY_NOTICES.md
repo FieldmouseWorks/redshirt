@@ -1,6 +1,7 @@
 # Third-party provenance
 
-The probability-total acceptance policy in `redshirt/jev.py` follows the Conary
+The probability-total acceptance policy in `redshirt/jev.py` and `src/decision.rs`
+follows the Conary
 pilot at commit `4278a9202f2bc87f58d54547f5c03e37cf14d26f`,
 [`apps/conary-test/src/explorer/jev/choice.rs`](https://github.com/FieldmouseWorks/Conary/blob/4278a9202f2bc87f58d54547f5c03e37cf14d26f/apps/conary-test/src/explorer/jev/choice.rs).
 The Rust controller in `src/controller.rs` also adapts the admission, dispatch

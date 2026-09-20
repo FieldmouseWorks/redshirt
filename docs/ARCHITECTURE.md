@@ -20,6 +20,13 @@ process/API boundary. Do not require an integration to adopt Rust merely to send
 observations or choose permitted actions. Keep optional providers replaceable,
 and preserve model-free execution and replay.
 
+Typed decision batches, response validation, uncertainty policy and provider
+receipts are shared Rust responsibilities. The [native Jev provider](JEV-RUST.md)
+implements this boundary under the existing controller. Applications own questions
+and calibrated thresholds; all questions read the same authorized state, and the
+action menu remains complete. Abstention is explicit before execution. Integrations
+do not need a duplicate policy engine or controller.
+
 Python remains appropriate for demonstrated tooling and browser integrations.
 The existing Python runner is the verified transition baseline, not a second
 permanent controller. Conary's existing Rust pilot is also a baseline; it still
