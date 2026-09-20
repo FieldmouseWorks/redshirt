@@ -21,6 +21,12 @@ external JSON decision sessions and concrete replay. The existing Python client
 works unchanged. The Python runner below remains the transition baseline for
 existing callers; migration of all callers/providers is not complete.
 
+Concrete consumer-project work drives shared improvements through
+[separate Redshirt issues and PRs](docs/ARCHITECTURE.md#consumer-driven-work).
+Keep application rules and private integration evidence in their owning projects;
+record reusable needs here without making a nonblocking platform idea displace
+the application's outcome. New sessions start with [AGENTS.md](AGENTS.md).
+
 Early development. The first implementation lives in Conary's existing
 `conary-test` harness and is under review in
 [Conary PR #1051](https://github.com/FieldmouseWorks/Conary/pull/1051).
