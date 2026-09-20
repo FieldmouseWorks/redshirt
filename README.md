@@ -41,6 +41,11 @@ adapter's virtual environment with `python -m pip install -e /path/to/redshirt`.
 There is no network provider in this slice. The mock transport accepts an
 explicitly supplied asynchronous callable and has no fallback or retries.
 
+Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
+They retain bounded execution and mandatory checks, but successful setup is never
+reported as a reset. Their evidence is explicitly nonreplayable; replay is refused
+before setup or input. Existing resettable adapters keep the default `reset` mode.
+
 Follow [progress and measured results](docs/PROGRESS.md) and the
 [public progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1).
 

@@ -66,7 +66,10 @@ class Verdict:
 
 class Adapter(Protocol):
     identity: dict  # Build, scenario, timing/setup and adapter contract identities.
+    setup_mode: str  # Optional at runtime: 'reset' (default) or 'attach'.
 
+    # Initialization hook. An attach adapter verifies an existing session here;
+    # it must not claim a reset merely because the starting observation matches.
     async def reset(self) -> None: ...
     async def observe(self) -> Observation: ...
     def candidates(self, observation: Observation) -> list[Candidate]: ...
@@ -108,6 +111,9 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
         raise ValueError("provide_exactly_one_selector_or_replay")
     cancel = cancel or asyncio.Event()
     identity = json.loads(encoded(adapter.identity))
+    setup_mode = getattr(adapter, 'setup_mode', 'reset')
+    if setup_mode not in ('reset', 'attach'):
+        raise ValueError('invalid_setup_mode')
     if len(encoded(identity)) > 4096:
         raise ValueError('identity_size')
     evidence = Evidence(output, limits.evidence_bytes, limits.captures)
@@ -116,7 +122,8 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
     report = {"version": 1, "identity": identity, "limits": asdict(limits),
               "provider": "none-replay" if replay is not None else provider.name,
               "requests": 0, "attempted_inputs": 0, "operations": [], "evaluations": [],
-              "stop": "not_started", "reset_verified": False, "final": None, "cleanup": False}
+              "stop": "not_started", "setup_mode": setup_mode, "setup_verified": False,
+              "reset_verified": False, "final": None, "cleanup": False}
     records = []
     baseline = None
 
@@ -156,19 +163,22 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
 
     try:
         if replay is not None:
+            if setup_mode == 'attach':
+                raise Stop('replay_unavailable')
             if (not isinstance(replay, dict) or len(encoded(replay)) > 65536
                     or set(replay) != {"version", "identity", "steps", "complete"}
                     or replay["version"] != 1 or replay["identity"] != identity or replay['complete'] is not True
                     or not isinstance(replay["steps"], list) or len(replay["steps"]) > limits.inputs):
                 raise Stop("replay_identity_or_shape")
-        evidence.event("started", {"identity": identity, "limits": asdict(limits)})
+        evidence.event("started", {"identity": identity, "limits": asdict(limits), "setup_mode": setup_mode})
         admit()
         await bounded(adapter.reset())
         check = await bounded(adapter.evaluate("reset", None))
         evidence.event("reset_checks", verdict_data(check))
         if not check.ok:
             raise Stop("reset_unverified")
-        report["reset_verified"] = True
+        report["setup_verified"] = True
+        report["reset_verified"] = setup_mode == 'reset'
         baseline = await bounded(adapter.observe())
         await capture()
         no_progress = 0
@@ -219,7 +229,7 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
             if candidate is None:
                 raise Stop("unknown_candidate")
             await bounded(adapter.verify())
-            if adapter.identity != identity:
+            if adapter.identity != identity or getattr(adapter, 'setup_mode', 'reset') != setup_mode:
                 raise Stop('identity_changed')
             current = await bounded(adapter.observe())
             if snapshot != json.loads(encoded(asdict(current))):
@@ -276,6 +286,7 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
                                      and report["final"]["ok"] and report["cleanup"])
         # An uncertain input must never disappear from a supposedly complete replay.
         report["replayable"] = (report["reset_verified"] and len(records) == len(report["operations"])
+                                and getattr(adapter, 'setup_mode', 'reset') == setup_mode
                                 and report["final"]["ok"] and report["cleanup"])
         evidence.finish(report, {"version": 1, "identity": identity,
                                  "complete": report['replayable'], "steps": records})

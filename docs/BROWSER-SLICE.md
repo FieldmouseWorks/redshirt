@@ -53,8 +53,23 @@ Use `redshirt.evidence.load_replay(path)`, then
 artifact/setup identity, restores and checks the baseline, regenerates matching
 concrete candidates, and compares observations and independent verdicts. It
 refuses incomplete traces and unavailable preconditions; it never substitutes a
-new action. This version requires a resettable adapter. A live application with
+new action. Executable replay requires a resettable adapter. A live application with
 no verified reset has observational evidence, not an executable-replay claim.
+
+The [attached-session follow-up](https://github.com/FieldmouseWorks/redshirt/issues/5)
+makes that boundary explicit: a trusted adapter declares `setup_mode = 'attach'`.
+Its existing `reset()` interface hook initializes and verifies attachment only;
+`setup_verified` can be true while `reset_verified` stays false. Recorded steps
+remain inspectable but their replay completeness is always false. Replay is
+refused before the initialization hook or any input, even when supplied evidence
+claims completeness. Mandatory final evaluation and cleanup still run.
+
+The default mode remains `reset`, preserving existing adapters and v1 replay
+files. Setup mode is frozen alongside identity for an episode; changing it during
+selection refuses input and prevents a replayability claim. The mode is an audited
+adapter declaration, not proof that arbitrary third-party reset code is correct.
+Three additional synthetic tests cover attached recording/forged replay, changed
+capability and invalid configuration (19 tests total).
 
 ## Measured result and limits
 
@@ -82,6 +97,6 @@ to spend model requests; any later comparison needs its own concrete data,
 request/time/cost bounds and authorization.
 
 Review is self-review, with independently specified checks; no separate reviewer
-or delegated worker participated. See the owning draft PR and the
+or delegated worker participated. See the owning PRs and the
 [progress issue](https://github.com/FieldmouseWorks/redshirt/issues/1) for exact
 candidate revisions and commands.
