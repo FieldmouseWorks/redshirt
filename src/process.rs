@@ -161,9 +161,17 @@ pub struct ProcessProvider {
 }
 impl ProcessAdapter {
     pub fn spawn(argv: &[String]) -> Result<(Self, ProcessProvider)> {
+        Self::spawn_without_env(argv, &[])
+    }
+    /// Host-selected environment exclusions; this trusted process is not a sandbox.
+    pub fn spawn_without_env(argv: &[String], remove: &[&str]) -> Result<(Self, ProcessProvider)> {
         let program = argv.first().ok_or_else(|| Stop::from("adapter_argv"))?;
-        let mut child = Command::new(program)
-            .args(&argv[1..])
+        let mut command = Command::new(program);
+        command.args(&argv[1..]);
+        for name in remove {
+            command.env_remove(name);
+        }
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

@@ -17,7 +17,7 @@ pub const ENDPOINT: &str = "https://api.typesafe.ai/v1/systemone";
 pub const MAX_BYTES: usize = 16384;
 pub const MAX_TOKENS: u32 = 65536;
 pub const DEADLINE: Duration = Duration::from_secs(5);
-const INPUT_USD_PER_MILLION: f64 = 0.042;
+pub const INPUT_USD_PER_MILLION: f64 = 0.042;
 
 fn response_text(raw: &[u8], secret: Option<&str>) -> (String, bool, bool) {
     let mut text = String::from_utf8_lossy(raw).into_owned();
