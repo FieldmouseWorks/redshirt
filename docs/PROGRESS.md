@@ -10,9 +10,44 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 | --- | --- | --- |
 | Conary fixture experiments | Implemented in Conary; draft under review | Real package sequences, independent checks, concrete replay and bounded reduction |
 | External Redshirt runner | Implemented; PR #4 merged, attached-session refinement in draft #6 | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
-| Browser gameplay adapter | Bounded private proof implemented | Ordinary movement, inspection and held transfers; independent checks and model-free replay |
+| Browser gameplay adapter | Bounded private player API implemented | Broad visible choices, ordinary controls, independent checks and model-free replay |
 | Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
-| Remote coordinator and additional providers | Future work | No implementation or deployment claimed |
+| Optional Jev provider | Draft #8, mock/default verified | Bounded Choice transport, raw receipts and usage; new live comparison pending |
+| Remote coordinator and further providers | Future work | No implementation or deployment claimed |
+
+## 2026-09-20 — bounded Jev provider and ordinary gameplay choices
+
+[Draft PR #8](https://github.com/FieldmouseWorks/redshirt/pull/8), implementation
+head `85308ea14954616a1a7fe48a93b14a8ceb8b1206`, adds the optional pinned Jev
+Choice provider. The controller retains bounded provider receipts through failure
+or cancellation and reserves their evidence space before dispatch. Up to 96
+adapter candidates plus stop support ordinary interactive screens; existing byte,
+input, time and replay restrictions remain. The provider has an explicit call cap,
+a five-second absolute deadline, one in-flight request and no retry or fallback.
+Conary's approximate-total policy and MIT notice are retained; its Rust pilot is
+unchanged. See [provider contract](JEV.md).
+
+All 29 synthetic tests passed with the optional HTTPX dependency. The ordinary
+stdlib lane needs no provider package and skips only the HTTPX transport test.
+The optional transport is tested in memory: no live request was made. A local
+wheel build includes both license notices; no package was published.
+[Hosted checks](https://github.com/FieldmouseWorks/redshirt/actions/runs/35484040411)
+passed both lanes at the implementation head.
+
+A private integration now exposes a model-neutral player API with 32 choices on
+its initial screen, audited visible state and ordinary controls. It passed 29 API
+checks, ten adapter checks, and three concrete replays without model calls. Its
+full browser gate passed 1,026 checks across 13 suites; normal pixels match the
+captured baseline. Hidden-state exclusion, stale/intervention refusal and a
+missing-input negative control were exercised. Game rules, private source/assets
+and captures remain outside this public repository.
+
+These are implementation and mock-transport results, not Jev gameplay or a model
+advantage claim. A new bounded local comparison and secure credential provisioning
+remain pending. Native broader play is still follow-up and has no reset/replay
+claim. No workers, separate reviewer, deployment or merge were used for this slice.
+Next: the approved/provisioned local gameplay comparison through this interface,
+then broader native observation/action coverage without copying game logic here.
 
 ## 2026-09-20 — attachment and replay capability
 
