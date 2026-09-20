@@ -18,10 +18,45 @@ not a new runtime capability or another provider experiment.
 | External Redshirt runner | Implemented; PR #4 merged, attached-session refinement in draft #6 | Candidate-only selection, budgets, cancellation, evidence and concrete replay; Conary migration remains open |
 | Browser gameplay adapter | Bounded private player API implemented | Broad visible choices, ordinary controls, independent checks and model-free replay |
 | Comparative mechanics research | Versioned observations recorded | Readiness and hand-state comparisons; historical exceptions remain unresolved |
-| Optional Jev provider | Draft #8, mock/default verified | Bounded Choice transport, raw receipts and usage; new live comparison pending |
+| Optional Jev provider | Native Rust batches/abstention implemented for #15; Python draft #8 retained | Bounded typed questions, complete action menus and receipts; live usefulness/calibration pending |
 | Remote coordinator and further providers | Future work | No implementation or deployment claimed |
 | Rust controller and adapter process | First bounded parity proof implemented; issue #9 | Existing browser adapter under one Rust owner, scripted/mock decisions and cross-runtime concrete replay |
 | Rust external JSON sessions | Implemented; issue #11 | Existing client/wire contract, role-filtered adapter views, cancellation and finite fractional replay digests |
+
+## 2026-09-20 — native Rust decision batches and confidence abstention
+
+[Issue #15](https://github.com/FieldmouseWorks/redshirt/issues/15), implementation
+`088bf92621e4d76894547e796397e948a0f11b58`, adds shared Rust question/answer types,
+batch validation, caller-configured confidence policy and native optional Jev
+HTTPS. It stacks on the existing Rust/controller documentation drafts; this is
+not a claim that the stack has merged. See [the provider contract](JEV-RUST.md).
+
+One request carries the full current action Choice and up to seven independent
+Choice/Score/Noul questions against the same authorized observation. Additional
+answers remain advisory evidence. Below an explicitly configured confidence floor,
+the provider records its proposal and returns `provider_uncertain` before input;
+there is no default cutoff, candidate pruning or automatic fallback. Rust retains
+call/evidence reservations and interrupted receipts, including mandatory final
+checks and cleanup. Existing Provider, adapter and replay contracts are unchanged.
+
+The final default Rust suite passes 22 tests; the native-feature suite passes 23.
+Fmt and default/native clippy pass. The existing 50-test Python run passes with
+one optional HTTPX transport test skipped locally. The Rust synthetic consumer
+produces the same one checked operation under scripted and three-question batched
+selection: two provider calls, one input, then concrete replay with zero provider
+calls. Low confidence, stale/busy state, missing effects and cancellation retain
+the expected refusals and finalization. Invalid auxiliary answers refuse the entire
+batch. Native HTTPS construction and sensitive request headers are tested without
+network; old dependency versions remain locked alongside optional new packages.
+
+The first size-limit test fixture did not actually exceed the request bound; its
+failure is retained, the fixture was corrected, and focused/full suites pass.
+Self-review also bounded diagnostic expansion caused by repeated credential
+redaction or invalid UTF-8, with explicit evidence flags and a regression check.
+Implementation and review were kept in the parent session after owner steering;
+no delegated findings were adopted. No live Jev calls, threshold calibration,
+consumer migration, merge or deployment occurred. These results establish the
+shared Rust mechanism; model usefulness still requires its own bounded comparison.
 
 ## 2026-09-20 — external JSON sessions under Rust
 
