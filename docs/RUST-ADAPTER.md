@@ -27,10 +27,12 @@ Output directories must be new; Unix directories use mode0700. Each bundle has
 events, report, concrete replay and SHA-256 manifest. The executable prints a
 small terminal summary. Argv, paths, scripts, limits and provider configuration
 are host configuration, never selector output. No shell interpretation, network
-listener or model credential lookup is implemented by the executable.
+listener is implemented by the executable. Only explicit `--jev CONFIG` mode with
+the optional `jev-http` feature looks up a model credential; see [Jev](JEV-RUST.md).
 
 Choose exactly one of `--script PATH`, `--remote-provider`, `--replay PATH`,
-`--stdio`. `--limits PATH` or `--limits-json JSON` reads a bounded JSON Limits
+`--stdio`, or native `--jev CONFIG`. `--limits PATH` or `--limits-json JSON` reads
+a bounded JSON Limits
 object (at most4096 bytes; mutually exclusive). Rust callers use Adapter and
 Provider traits, signal the cancellation token, and await finalization rather
 than aborting the entire run future. The executable maps SIGINT to cancellation.
@@ -117,6 +119,8 @@ seconds; missing delivery does not erase the report or change the game verdict.
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
+cargo clippy --locked --all-features --all-targets -- -D warnings
+cargo test --locked --all-features
 cargo build --locked
 REDSHIRT_BIN="$PWD/target/debug/redshirt" python3 -m unittest discover -s tests -v
 ```

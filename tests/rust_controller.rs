@@ -391,3 +391,206 @@ fn ascii_delete_matches_python_v1_escape() {
         br#"{"label":"\u007f"}"#
     );
 }
+
+struct BatchTransport {
+    state: Arc<Mutex<State>>,
+    confidence: f64,
+    cancel: Option<CancellationToken>,
+}
+#[async_trait]
+impl jev::Transport for BatchTransport {
+    async fn post(&mut self, body: Vec<u8>) -> Result<(u16, Vec<u8>)> {
+        let request = decode(&body)?;
+        assert_eq!(request["questions"].as_object().unwrap().len(), 3);
+        assert_eq!(request["state"].as_object().unwrap().len(), 4);
+        assert_eq!(
+            request["state"]["observation"].as_object().unwrap().len(),
+            1
+        );
+        assert_eq!(
+            request["questions"]["action"]["criteria"],
+            request["state"]["candidates"]
+        );
+        self.state.lock().unwrap().selected += 1;
+        if let Some(cancel) = &self.cancel {
+            cancel.cancel();
+            std::future::pending::<()>().await;
+        }
+        let done = request["state"]["observation"]["counter"] == 1;
+        let reply = json!({"model":jev::MODEL,"answers":{
+            "action":{"type":"choice","choice":if done {"stop"} else {"increment"},
+                "probabilities":{"increment":if done {0.1} else {0.9},"stop":if done {0.9} else {0.1}},
+                "confidence":self.confidence},
+            "visible":{"type":"noul","noul":1.0},
+            "urgency":{"type":"score","score":0.0,"legend":{"0":"Routine","1":"Urgent"},
+                "probabilities":{"0":1.0,"1":0.0},"confidence":1.0}
+        },"usage":{"input_tokens":180,"output_tokens":50}});
+        Ok((200, encoded(&reply)?))
+    }
+}
+fn batch_config() -> jev::Config {
+    serde_json::from_value(json!({"questions":{
+        "visible":{"type":"noul","instructions":"Is the counter visible?"},
+        "urgency":{"type":"score","instructions":"How urgent is this task?","criteria":["Routine","Urgent"]}
+    },"policy":{"min_confidence":0.8}})).unwrap()
+}
+
+#[tokio::test]
+async fn batched_selection_matches_scripted_outcomes_and_replays_without_provider() {
+    let dir = tempfile::tempdir().unwrap();
+    let cancel = CancellationToken::new();
+    let mut env = Fixture::new("normal");
+    let mut provider = jev::Jev::new(
+        BatchTransport {
+            state: env.state.clone(),
+            confidence: 0.9,
+            cancel: None,
+        },
+        batch_config(),
+    )
+    .unwrap();
+    let output = dir.path().join("batch");
+    let batch = run(
+        &mut env,
+        Some(&mut provider),
+        None,
+        &output,
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    let mut script = Scripted(vec!["increment".into(), "stop".into()].into());
+    let baseline = run(
+        &mut Fixture::new("normal"),
+        Some(&mut script),
+        None,
+        &dir.path().join("baseline"),
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(batch["stop"], "selector_stop");
+    assert_eq!(batch["operations"], baseline["operations"]);
+    assert_eq!(batch["evaluations"], baseline["evaluations"]);
+    assert_eq!(batch["requests"], 2);
+    assert_eq!(batch["attempted_inputs"], 1);
+    assert_eq!(provider.calls(), 2);
+    let events = std::fs::read_to_string(output.join("events.jsonl")).unwrap();
+    let receipts: Vec<Value> = events
+        .lines()
+        .map(|line| decode(line.as_bytes()).unwrap())
+        .filter(|v| v["event"] == "provider_receipt")
+        .collect();
+    assert_eq!(receipts.len(), 2);
+    let saved = load(&output.join("replay.json"), 65536).unwrap();
+    let replay = run(
+        &mut Fixture::new("normal"),
+        None,
+        Some(saved),
+        &dir.path().join("replay"),
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(replay["replay_complete"], true);
+    assert_eq!(replay["requests"], 0);
+    assert_eq!(provider.calls(), 2);
+    assert_eq!(replay["evaluations"], batch["evaluations"]);
+}
+
+#[tokio::test]
+async fn batched_provider_preserves_controller_refusals_and_finalization() {
+    for (mode, confidence, stopped, expected_inputs) in [
+        ("normal", 0.7, "provider_uncertain", 0),
+        ("stale", 0.9, "stale_observation", 0),
+        ("busy", 0.9, "busy_refused", 0),
+        ("omitted", 0.9, "evaluation_failed", 1),
+        ("cancel", 0.9, "cancelled", 0),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let cancel = CancellationToken::new();
+        let mut env = Fixture::new(mode);
+        let mut provider = jev::Jev::new(
+            BatchTransport {
+                state: env.state.clone(),
+                confidence,
+                cancel: if mode == "cancel" {
+                    Some(cancel.clone())
+                } else {
+                    None
+                },
+            },
+            batch_config(),
+        )
+        .unwrap();
+        let output = dir.path().join("run");
+        let report = run(
+            &mut env,
+            Some(&mut provider),
+            None,
+            &output,
+            Limits::default(),
+            &cancel,
+        )
+        .await
+        .unwrap();
+        assert_eq!(report["stop"], stopped, "{mode}");
+        assert_eq!(report["attempted_inputs"], expected_inputs, "{mode}");
+        assert_eq!(provider.calls(), 1);
+        let state = env.state.lock().unwrap();
+        assert!(state.finalized && state.closed);
+        let events = std::fs::read_to_string(output.join("events.jsonl")).unwrap();
+        let receipt: Value = events
+            .lines()
+            .map(|line| decode(line.as_bytes()).unwrap())
+            .find(|v| v["event"] == "provider_receipt")
+            .unwrap();
+        let outcome = receipt["data"]["outcome"].as_str().unwrap();
+        assert_eq!(
+            outcome,
+            match mode {
+                "normal" => "abstained",
+                "cancel" => "interrupted",
+                _ => "accepted",
+            }
+        );
+    }
+}
+
+#[tokio::test]
+async fn batched_evidence_reservation_refuses_before_model_dispatch() {
+    let dir = tempfile::tempdir().unwrap();
+    let cancel = CancellationToken::new();
+    let mut env = Fixture::new("normal");
+    let mut provider = jev::Jev::new(
+        BatchTransport {
+            state: env.state.clone(),
+            confidence: 0.9,
+            cancel: None,
+        },
+        batch_config(),
+    )
+    .unwrap();
+    let report = run(
+        &mut env,
+        Some(&mut provider),
+        None,
+        &dir.path().join("run"),
+        Limits {
+            evidence_bytes: 262144,
+            ..Limits::default()
+        },
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["stop"], "evidence_budget");
+    assert_eq!(report["requests"], 0);
+    assert_eq!(provider.calls(), 0);
+    assert_eq!(report["attempted_inputs"], 0);
+    let state = env.state.lock().unwrap();
+    assert!(state.finalized && state.closed);
+}

@@ -51,9 +51,11 @@ python3 -m unittest discover -s tests -v
 
 For a local adapter, put this checkout on `PYTHONPATH` or install it in the
 adapter's virtual environment with `python -m pip install -e /path/to/redshirt`.
-The optional [Jev provider](docs/JEV.md) adds pinned, bounded Choice selection
-with per-call evidence. It is explicitly enabled; the mock transport and ordinary
-model-free selectors remain available without network access or credentials.
+The optional [Rust Jev provider](docs/JEV-RUST.md) adds pinned action selection,
+independent questions in one batch, per-call evidence and caller-configured
+confidence abstention. Native HTTPS is opt-in through the `jev-http` feature and
+`--jev CONFIG`; injected transports and model-free selectors work without network
+access or credentials. The Python provider remains a transition baseline.
 
 The [local JSON interface](docs/INTERACTION.md) lets an external LLM/tool handler
 or script receive structured observations and current action schemas, then choose

@@ -11,6 +11,7 @@ async fn main_result() -> Result<bool> {
     let mut remote = false;
     let mut stdio = false;
     let mut limits_json = None;
+    let mut jev_config = None;
     let mut argv = vec![];
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -23,6 +24,11 @@ async fn main_result() -> Result<bool> {
             }
             "--remote-provider" => remote = true,
             "--stdio" => stdio = true,
+            "--jev" => {
+                jev_config = Some(PathBuf::from(
+                    args.next().ok_or_else(|| Stop::from("invalid_arguments"))?,
+                ))
+            }
             "--adapter" => {
                 argv = args.collect();
                 break;
@@ -35,6 +41,7 @@ async fn main_result() -> Result<bool> {
             + usize::from(replay.is_some())
             + usize::from(remote)
             + usize::from(stdio)
+            + usize::from(jev_config.is_some())
             == 1,
         "choose_one_mode",
     )?;
@@ -52,6 +59,11 @@ async fn main_result() -> Result<bool> {
         Limits::default()
     };
     limits.validate()?;
+    let mut jev_provider: Option<Box<dyn Provider>> = if let Some(path) = jev_config {
+        Some(configure_jev(&path)?)
+    } else {
+        None
+    };
     let saved = replay.map(|p| load(&p, 65536)).transpose()?;
     let mut script = if let Some(path) = script {
         let ids: Vec<String> =
@@ -79,6 +91,8 @@ async fn main_result() -> Result<bool> {
     let (mut adapter, mut provider) = ProcessAdapter::spawn(&argv)?;
     let selector: Option<&mut dyn Provider> = if remote {
         Some(&mut provider)
+    } else if let Some(provider) = jev_provider.as_mut() {
+        Some(provider.as_mut())
     } else if let Some(provider) = interactive.as_mut() {
         Some(provider)
     } else {
@@ -105,6 +119,21 @@ async fn main_result() -> Result<bool> {
             && report["final"]["ok"] == true
             && report["cleanup"] == true,
     )
+}
+
+#[cfg(feature = "jev-http")]
+fn configure_jev(path: &std::path::Path) -> Result<Box<dyn Provider>> {
+    let config: jev::Config = serde_json::from_value(load(path, 8192)?)
+        .map_err(|_| Stop::from("invalid_provider_config"))?;
+    config.validate()?;
+    let key =
+        std::env::var("TYPESAFE_API_KEY").map_err(|_| Stop::from("missing_or_invalid_key"))?;
+    Ok(Box::new(jev::Jev::live(key, config)?))
+}
+
+#[cfg(not(feature = "jev-http"))]
+fn configure_jev(_: &std::path::Path) -> Result<Box<dyn Provider>> {
+    Err("jev_http_feature_required".into())
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
