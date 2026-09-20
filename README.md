@@ -42,6 +42,11 @@ The optional [Jev provider](docs/JEV.md) adds pinned, bounded Choice selection
 with per-call evidence. It is explicitly enabled; the mock transport and ordinary
 model-free selectors remain available without network access or credentials.
 
+The [local JSON interface](docs/INTERACTION.md) lets an external LLM/tool handler
+or script receive structured observations and current action schemas, then choose
+one ID. It uses the same runner and supports zero-capture gameplay and replay.
+Project adapters assign roles and filter their own information and controls.
+
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never
 reported as a reset. Their evidence is explicitly nonreplayable; replay is refused
