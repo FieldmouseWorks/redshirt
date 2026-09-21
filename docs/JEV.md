@@ -29,13 +29,16 @@ credential provisioning and authorization for their data and spend.
 The model receives only the runner's audited observation, complete current
 candidate descriptions, and remaining input budget. There is one Choice question;
 no candidate pruning, chained model conversation, image input, generated commands
-or model-supplied evaluator. The controller accepts up to 96 adapter candidates
-plus stop, while retaining its existing byte/input/time/evidence bounds.
+or model-supplied evaluator. The controller defaults to 96 adapter candidates plus stop. Trusted hosts can
+[configure wider bounded menus](RUST-ADAPTER.md#host-configured-menu-bounds), up to
+254 candidates plus stop, while retaining input/time/total-evidence bounds.
 
 Each provider permits at most 12 configured calls (default six), one in flight,
 with a five-second absolute deadline including transport and body reads. There
 are no retries, fallback models, redirects or inherited environment proxies.
-Requests and responses are each bounded to 16 KiB. HTTP errors, cancellation,
+Requests default to 16 KiB; an explicit `request_bytes` constructor/live argument
+can admit up to 64 KiB. Responses remain bounded to 16 KiB. An expanded request
+allowance reserves 256 KiB for its receipt before dispatch. HTTP errors, cancellation,
 malformed JSON, duplicate keys, model drift, invalid usage, missing probabilities,
 out-of-range values and nonmaximum choices fail closed.
 

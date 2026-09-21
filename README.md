@@ -57,6 +57,10 @@ confidence abstention. Native HTTPS is opt-in through the `jev-http` feature and
 `--jev CONFIG`; injected transports and model-free selectors work without network
 access or credentials. The Python provider remains a transition baseline.
 
+Trusted hosts can explicitly configure [wider bounded action menus](docs/RUST-ADAPTER.md#host-configured-menu-bounds)
+while existing menu defaults remain unchanged. Synthetic proofs cover complete
+schemas, injected providers and cross-runtime replay without model calls.
+
 The [local JSON interface](docs/INTERACTION.md) lets an external LLM/tool handler
 or script receive structured observations and current action schemas, then choose
 one ID. Rust `--stdio` owns the episode and supports zero-capture gameplay and replay.

@@ -66,7 +66,8 @@ prequeued duplicate, unknown action, extra field, malformed/oversized JSON or EO
 stops the episode without retry. The runner revalidates the environment and
 candidate immediately before execution. It retains all existing budgets,
 cancellation, no-progress limits, evidence and provider-free concrete replay.
-Outbound messages are at most32KiB; replies at most4KiB. There is one pending
+Outbound messages are at most64KiB; replies at most4KiB. Host-configured
+[menu limits](RUST-ADAPTER.md#host-configured-menu-bounds) retain the old defaults. There is one pending
 decision. The runner's operation deadline includes the client's thinking time
 (at most10 seconds); real-time environments continue advancing during that wait.
 
