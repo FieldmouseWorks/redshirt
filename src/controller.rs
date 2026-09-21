@@ -36,7 +36,7 @@ impl Budget<'_> {
         }
     }
 }
-fn validate_frame(frame: &Frame) -> Result<()> {
+fn validate_frame(frame: &Frame, limits: &Limits) -> Result<()> {
     let o = &frame.observation;
     require(
         o.view.is_object() && encoded(&o.view)?.len() <= 4096,
@@ -45,7 +45,10 @@ fn validate_frame(frame: &Frame) -> Result<()> {
     require(encoded(o)?.len() <= 8192, "observation_size")?;
     view_digest(&o.view)?;
     let mut ids = std::collections::BTreeSet::new();
-    require(frame.candidates.len() <= 96, "invalid_candidates")?;
+    require(
+        frame.candidates.len() <= limits.candidates,
+        "invalid_candidates",
+    )?;
     for c in &frame.candidates {
         require(
             !c.id.is_empty()
@@ -59,7 +62,10 @@ fn validate_frame(frame: &Frame) -> Result<()> {
             "invalid_candidates",
         )?;
     }
-    require(encoded(&frame.candidates)?.len() <= 16384, "candidate_size")
+    require(
+        encoded(&frame.candidates)?.len() <= limits.candidate_bytes,
+        "candidate_size",
+    )
 }
 fn checked(check: Verdict) -> Result<Verdict> {
     require(
@@ -72,7 +78,7 @@ fn receipts(provider: &mut Option<&mut dyn Provider>, evidence: &mut Evidence) -
     if let Some(p) = provider.as_deref_mut() {
         let rows = p.take_evidence();
         require(
-            rows.len() <= 1 && encoded(&rows)?.len() <= 131072,
+            rows.len() <= 1 && encoded(&rows)?.len() <= 262144,
             "provider_evidence_size",
         )?;
         for row in rows {
@@ -150,12 +156,12 @@ pub async fn run(
         require(reset.ok, "reset_unverified")?;
         setup_verified = true;
         let baseline = budget.call(adapter.observe()).await?;
-        validate_frame(&baseline)?;
+        validate_frame(&baseline, &limits)?;
         let mut no_progress = 0;
         loop {
             budget.admit(attempted, 0)?;
             let frame = budget.call(adapter.observe()).await?;
-            validate_frame(&frame)?;
+            validate_frame(&frame, &limits)?;
             let observation = &frame.observation;
             require(observation.environment == baseline.observation.environment
                 && observation.epoch == baseline.observation.epoch, "environment_changed")?;
@@ -177,9 +183,9 @@ pub async fn run(
                 let request = json!({"version":1,"observation":observation.view,"candidates":candidates,
                     "remaining_inputs":limits.inputs-attempted});
                 let size = encoded(&request)?.len();
-                require(size <= 16384, "observation_size")?;
+                require(size <= limits.decision_bytes, "observation_size")?;
                 let p = provider.as_deref_mut().ok_or_else(|| Stop::from("missing_provider"))?;
-                require(p.evidence_limit() <= 131072, "provider_evidence_size")?;
+                require(p.evidence_limit() <= 262144, "provider_evidence_size")?;
                 evidence.reserve(p.evidence_limit() + size + 2048)?;
                 evidence.event("request", &request)?;
                 requests += 1;
@@ -195,7 +201,7 @@ pub async fn run(
             let current_identity = budget.call(adapter.verify()).await?;
             require(current_identity == initial, "identity_changed")?;
             let current = budget.call(adapter.observe()).await?;
-            validate_frame(&current)?;
+            validate_frame(&current, &limits)?;
             require(current.observation == *observation, "stale_observation")?;
             require(current.candidates == frame.candidates, "candidate_changed")?;
             require(!candidate.needs_ready || current.observation.ready, "busy_refused")?;

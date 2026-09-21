@@ -12,7 +12,7 @@ import sys
 from .evidence import encoded
 from .runner import Limits, Stop, run
 
-MAX_MESSAGE = 32768
+MAX_MESSAGE = 65536
 MAX_REPLY = 4096
 
 

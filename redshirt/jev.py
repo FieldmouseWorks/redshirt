@@ -75,9 +75,13 @@ class Jev:
     name = "jev-mock"
     evidence_limit = 120000  # 16 KiB request + worst-case JSON-escaped response.
 
-    def __init__(self, transport, *, request_limit=6):
+    def __init__(self, transport, *, request_limit=6, request_bytes=MAX_BYTES):
         if type(request_limit) is not int or not 1 <= request_limit <= 12:
             raise ValueError("request_limit")
+        if type(request_bytes) is not int or not 1024 <= request_bytes <= 65536:
+            raise ValueError("request_bytes")
+        self.request_bytes = request_bytes
+        self.evidence_limit = 262144 if request_bytes > MAX_BYTES else 120000
         self.transport, self.request_limit = transport, request_limit
         self.calls = 0
         self._busy = False
@@ -85,7 +89,7 @@ class Jev:
         self._secret = None
 
     @classmethod
-    def live(cls, key, *, request_limit=6):
+    def live(cls, key, *, request_limit=6, request_bytes=MAX_BYTES):
         if not isinstance(key, str) or not key or key.strip() != key:
             raise ValueError("missing_or_invalid_key")
         import httpx  # Optional dependency; default runs never import it.
@@ -103,7 +107,7 @@ class Jev:
                             raise ValueError("response_size")
                     return response.status_code, bytes(raw)
 
-        instance = cls(transport, request_limit=request_limit)
+        instance = cls(transport, request_limit=request_limit, request_bytes=request_bytes)
         instance.name, instance._secret = "jev-live", key
         return instance
 
@@ -117,7 +121,7 @@ class Jev:
         if self.calls >= self.request_limit:
             raise ValueError("provider_request_budget")
         candidates = request["candidates"]
-        if (not isinstance(candidates, dict) or "stop" not in candidates or not 1 <= len(candidates) <= 97
+        if (not isinstance(candidates, dict) or "stop" not in candidates or not 1 <= len(candidates) <= 255
                 or any(not isinstance(k, str) or not isinstance(v, str) for k, v in candidates.items())):
             raise ValueError("invalid_candidates")
         body = {"model": MODEL, "state": request,
@@ -128,7 +132,7 @@ class Jev:
                     "Return the candidate ID; the controller independently checks and executes it.",
                     "criteria": candidates}}}
         payload = encoded(body)
-        if len(payload) > MAX_BYTES:
+        if len(payload) > self.request_bytes:
             raise ValueError("request_size")
         self._busy = True
         self.calls += 1  # An uncertain dispatch still consumes its reservation.

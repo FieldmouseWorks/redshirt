@@ -53,6 +53,7 @@ fn response_text(raw: &[u8], secret: Option<&str>) -> (String, bool, bool) {
 pub struct Config {
     pub version: u32,
     pub request_limit: u32,
+    pub request_bytes: usize,
     /// Additional independent questions. The action Choice is controller-bound.
     pub questions: Questions,
     pub policy: ConfidencePolicy,
@@ -62,6 +63,7 @@ impl Default for Config {
         Self {
             version: 1,
             request_limit: 6,
+            request_bytes: MAX_BYTES,
             questions: Questions::new(),
             policy: ConfidencePolicy::default(),
         }
@@ -70,7 +72,9 @@ impl Default for Config {
 impl Config {
     pub fn validate(&self) -> Result<()> {
         require(
-            self.version == 1 && (1..=12).contains(&self.request_limit),
+            self.version == 1
+                && (1..=12).contains(&self.request_limit)
+                && (1024..=65536).contains(&self.request_bytes),
             "invalid_provider_config",
         )?;
         require(
@@ -107,7 +111,7 @@ struct Request {
 
 fn batch(request: Value, config: &Config) -> Result<(Value, Questions)> {
     require(
-        encoded(&request)?.len() <= MAX_BYTES,
+        encoded(&request)?.len() <= config.request_bytes,
         "provider_request_size",
     )?;
     let state: Request = serde_json::from_value(request.clone())
@@ -118,7 +122,7 @@ fn batch(request: Value, config: &Config) -> Result<(Value, Questions)> {
             && encoded(&state.observation)?.len() <= 4096
             && state.remaining_inputs <= 24
             && state.candidates.contains_key("stop")
-            && (1..=97).contains(&state.candidates.len()),
+            && (1..=255).contains(&state.candidates.len()),
         "invalid_provider_request",
     )?;
     let mut questions = config.questions.clone();
@@ -200,7 +204,11 @@ impl<T: Transport> Provider for Jev<T> {
         self.name
     }
     fn evidence_limit(&self) -> usize {
-        131072
+        if self.config.request_bytes > MAX_BYTES {
+            262144
+        } else {
+            131072
+        }
     }
 
     async fn select(&mut self, request: Value) -> Result<String> {
@@ -212,7 +220,10 @@ impl<T: Transport> Provider for Jev<T> {
         )?;
         let (body, questions) = batch(request, &self.config)?;
         let payload = encoded(&body)?;
-        require(payload.len() <= MAX_BYTES, "provider_request_size")?;
+        require(
+            payload.len() <= self.config.request_bytes,
+            "provider_request_size",
+        )?;
         self.calls += 1;
         let started = Instant::now();
         // This lives on the provider, not the future: cancellation preserves the

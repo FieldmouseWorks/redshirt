@@ -13,8 +13,8 @@ from .evidence import encoded
 from .interaction import _decode
 from .runner import Stop
 
-MAX_REQUEST = 32768
-MAX_RESPONSE = 196608
+MAX_REQUEST = 65536
+MAX_RESPONSE = 393216
 
 
 async def serve(adapter, reader, writer, *, provider=None):
@@ -77,7 +77,7 @@ async def serve(adapter, reader, writer, *, provider=None):
             if method == 'select' and provider is not None:
                 drain = getattr(provider, 'take_evidence', None)
                 rows = drain() if drain else []
-                if not isinstance(rows, list) or len(rows) > 1 or len(encoded(rows)) > 131072:
+                if not isinstance(rows, list) or len(rows) > 1 or len(encoded(rows)) > 262144:
                     response = {'version': 1, 'id': message['id'], 'error': 'provider_evidence_size', 'receipts': []}
                 else:
                     response['receipts'] = rows

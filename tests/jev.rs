@@ -341,3 +341,68 @@ fn cli_rejects_conflicting_modes_and_missing_transport_before_adapter_setup() {
     assert!(String::from_utf8(result.stderr).unwrap().contains(expected));
     assert!(!output_path.exists());
 }
+
+#[tokio::test]
+async fn wide_menu_requires_explicit_request_bytes_and_preserves_all_255_options() {
+    let mut state = request();
+    let candidates = state["candidates"].as_object_mut().unwrap();
+    candidates.remove("increment");
+    for i in 0..254 {
+        candidates.insert(format!("option_{i}"), "x".repeat(70).into());
+    }
+    let probabilities: serde_json::Map<_, _> = candidates
+        .keys()
+        .map(|k| (k.clone(), json!(if k == "option_253" { 1.0 } else { 0.0 })))
+        .collect();
+    let reply = json!({"model":MODEL,"answers":{"action":{"type":"choice","choice":"option_253",
+        "probabilities":probabilities,"confidence":1.0}},"usage":{"input_tokens":200,"output_tokens":20}});
+    let mut default = Jev::new(stub(encoded(&reply).unwrap()), Config::default()).unwrap();
+    assert_eq!(
+        default.select(state.clone()).await.unwrap_err().0,
+        "provider_request_size"
+    );
+    assert_eq!(default.calls(), 0);
+    let transport = stub(encoded(&reply).unwrap());
+    let seen = transport.seen.clone();
+    let config = Config {
+        request_bytes: 65536,
+        ..Config::default()
+    };
+    let mut provider = Jev::new(transport, config.clone()).unwrap();
+    assert_eq!(provider.select(state.clone()).await.unwrap(), "option_253");
+    let raw = seen.lock().unwrap()[0].clone();
+    let body = decode(&raw).unwrap();
+    assert!(raw.len() > MAX_BYTES);
+    assert_eq!(body["questions"]["action"]["criteria"], state["candidates"]);
+    assert!(encoded(&provider.take_evidence()).unwrap().len() <= provider.evidence_limit());
+    for allowed in [raw.len(), raw.len() - 1] {
+        let mut exact = Jev::new(
+            stub(encoded(&reply).unwrap()),
+            Config {
+                request_bytes: allowed,
+                ..config.clone()
+            },
+        )
+        .unwrap();
+        let result = exact.select(state.clone()).await;
+        assert_eq!(result.is_ok(), allowed == raw.len());
+        assert_eq!(exact.calls(), u32::from(allowed == raw.len()));
+    }
+    for value in [1023, 65537] {
+        assert!(
+            Config {
+                request_bytes: value,
+                ..Config::default()
+            }
+            .validate()
+            .is_err()
+        );
+    }
+    let mut oversized = Jev::new(stub(vec![b'x'; MAX_BYTES + 1]), config).unwrap();
+    assert_eq!(
+        oversized.select(state).await.unwrap_err().0,
+        "provider_response_size"
+    );
+    assert_eq!(oversized.calls(), 1);
+    assert_eq!(oversized.take_evidence().len(), 1);
+}
