@@ -4,6 +4,39 @@ This page records demonstrated behavior, its limits and the next bounded slice.
 The [progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1) links
 ongoing updates; implementation issues and PRs own their exact acceptance checks.
 
+## 2026-09-21 — host-configured wider action menus
+
+[Issue #20](https://github.com/FieldmouseWorks/redshirt/issues/20), runtime/tests
+`0716d9042d119816633396bfc685f1b4102947dc`, adds explicit host limits for candidate count, encoded candidate tables
+and decision requests. Defaults remain 96/16 KiB/16 KiB; opt-in ceilings are
+254/64 KiB/32 KiB. Optional provider requests can explicitly use up to 64 KiB;
+16 KiB responses, call/time/input and total evidence bounds remain. Process
+provider receipts reserve 256 KiB conservatively, so constrained evidence budgets
+can stop earlier. No provider or client reply can raise host limits. Contracts
+and compatibility requirements are in [the adapter boundary](RUST-ADAPTER.md#host-configured-menu-bounds).
+
+Synthetic checks preserve complete 255-option Choice menus, exact byte/count
+boundaries, pre-input candidate binding, both cross-runtime replay directions and
+JSON envelopes larger than the previous client bound. Actual pipes use one Rust
+controller; replay makes zero provider calls. No private consumer content is in
+these fixtures. Self-review: default Rust 28/0, all-feature Rust 29/0; fmt and both
+clippy modes pass. The complete Python suite passes 61/0 in 14.934s with the actual
+Rust executable and optional HTTPX transport installed. Initial Python verification
+was 60 passes plus one optional dependency skip; focused Python/controller checks
+were 6/0 and 5/0. One local environment setup failed because ensurepip was absent;
+uv populated a slice-local environment with pinned HTTPX 0.28.1, then the complete
+suite ran without skips. No product check failed, and no assertion was weakened.
+
+Commands actually run: `cargo build --locked --all-features`,
+`cargo fmt --all -- --check`, `cargo clippy --locked --all-targets -- -D warnings`,
+`cargo clippy --locked --all-features --all-targets -- -D warnings`,
+`cargo test --locked`, `cargo test --locked --all-features`, and
+`REDSHIRT_BIN=target/debug/redshirt python3 -m unittest discover -s tests -v`
+(with absolute executable paths in the local run). Provider transports are injected;
+no live call, delegated worker, deployment or model-quality claim. Exact review/CI
+and merge receipts follow in the issue/PR. The blocked consumer owns its separate
+integration proof and links the exact required shared revision privately.
+
 ## Current surface
 
 The [consumer workflow](ARCHITECTURE.md#consumer-driven-work), tracked in

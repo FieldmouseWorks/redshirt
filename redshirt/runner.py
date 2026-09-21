@@ -26,6 +26,9 @@ class Limits:
     captures: int = 12
     requests: int = 24
     no_progress: int = 3
+    candidates: int = 96
+    candidate_bytes: int = 16384
+    decision_bytes: int = 16384
 
     def validate(self):
         if not (1 <= self.inputs <= 24 and 0 < self.seconds <= 180
@@ -33,7 +36,10 @@ class Limits:
                 and self.seconds > 2 * self.final_seconds
                 and 262144 <= self.evidence_bytes <= 8 * 1024 * 1024
                 and 0 <= self.captures <= 12 and 1 <= self.requests <= 24
-                and 1 <= self.no_progress <= 3):
+                and 1 <= self.no_progress <= 3
+                and type(self.candidates) is int and 1 <= self.candidates <= 254
+                and type(self.candidate_bytes) is int and 1024 <= self.candidate_bytes <= 65536
+                and type(self.decision_bytes) is int and 1024 <= self.decision_bytes <= 32768):
             raise ValueError("invalid_limits")
 
 
@@ -79,15 +85,15 @@ class Adapter(Protocol):
     async def close(self) -> None: ...
 
 
-def candidates_for(adapter, observation):
+def candidates_for(adapter, observation, limits=Limits()):
     candidates = adapter.candidates(observation)
     ids = [c.id for c in candidates]
-    if (len(candidates) > 96 or len(set(ids)) != len(ids) or "stop" in ids
+    if (len(candidates) > limits.candidates or len(set(ids)) != len(ids) or "stop" in ids
             or any(not isinstance(c.id, str) or not c.id or len(c.id) > 80
                    or not isinstance(c.description, str) or len(c.description) > 512
                    or not 1 <= c.inputs <= 24 or len(encoded(c.operation)) > 512 for c in candidates)):
         raise Stop("invalid_candidates")
-    if len(encoded([asdict(c) for c in candidates])) > 16384:
+    if len(encoded([asdict(c) for c in candidates])) > limits.candidate_bytes:
         raise Stop("candidate_size")
     return candidates
 
@@ -193,7 +199,7 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
                 raise Stop("environment_changed")
             if observation.terminal:
                 raise Stop(observation.terminal)
-            candidates = candidates_for(adapter, observation)
+            candidates = candidates_for(adapter, observation, limits)
             frozen = encoded([asdict(c) for c in candidates])
             if replay is not None:
                 if len(records) == len(replay["steps"]):
@@ -213,10 +219,10 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
                            "candidates": {c.id: c.description for c in candidates},
                            "remaining_inputs": limits.inputs - report["attempted_inputs"]}
                 request["candidates"]["stop"] = "Stop the experiment."
-                if len(encoded(request)) > 16384:
+                if len(encoded(request)) > limits.decision_bytes:
                     raise Stop("observation_size")
                 receipt_limit = getattr(provider, "evidence_limit", 0)
-                if type(receipt_limit) is not int or not 0 <= receipt_limit <= 131072:
+                if type(receipt_limit) is not int or not 0 <= receipt_limit <= 262144:
                     raise Stop("provider_evidence_size")
                 # Reserve a bounded provider receipt before an uncertain/costly
                 # dispatch, leaving final evaluation/report space untouched.
@@ -230,7 +236,7 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
                     drain = getattr(provider, "take_evidence", None)
                     if drain:
                         receipts = drain()
-                        if not isinstance(receipts, list) or len(receipts) > 1 or len(encoded(receipts)) > 131072:
+                        if not isinstance(receipts, list) or len(receipts) > 1 or len(encoded(receipts)) > 262144:
                             raise Stop("provider_evidence_size")
                         for receipt in receipts:
                             evidence.event("provider_receipt", receipt)
@@ -250,7 +256,7 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
             current = await bounded(adapter.observe())
             if snapshot != json.loads(encoded(asdict(current))):
                 raise Stop("stale_observation")
-            if frozen != encoded([asdict(c) for c in candidates_for(adapter, current)]):
+            if frozen != encoded([asdict(c) for c in candidates_for(adapter, current, limits)]):
                 raise Stop("candidate_changed")
             if candidate.needs_ready and not current.ready:
                 raise Stop("busy_refused")

@@ -65,8 +65,13 @@ measured task success. Calibrate against the actual task and pinned model;
 independent adapter checks retain correctness authority. Auxiliary answers are
 advisory and cannot bypass admission or change the action menu.
 
-Bounds: eight total questions, 8 KiB config, 16 KiB complete request/response,
-1–12 calls, one in flight, five-second absolute transport/body deadline. Native
+Bounds: eight total questions, 8 KiB config, 16 KiB responses,
+1–12 calls, one in flight, five-second absolute transport/body deadline. Complete
+request bodies default to 16 KiB. Trusted `request_bytes` config accepts 1–64 KiB;
+expanded allowances reserve 256 KiB of receipt space, with no change to the
+controller's total evidence budget. Action Choice supports up to 255 options
+including stop; the controller's separate host-configured menu limits still apply.
+Oversized requests refuse before dispatch and consume no provider call. Native
 HTTPS pins `https://api.typesafe.ai/v1/systemone` and `jev-1.13.0`, verifies TLS,
 and disables proxies, redirects, retries and decompression. Every uncertain
 dispatch consumes a call and a 65,536-input-token reservation. Rust reserves

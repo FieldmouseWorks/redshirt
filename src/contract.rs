@@ -31,6 +31,10 @@ pub struct Limits {
     pub captures: u32,
     pub requests: u32,
     pub no_progress: u32,
+    /// Host-only menu bounds; stop is added separately by the controller.
+    pub candidates: usize,
+    pub candidate_bytes: usize,
+    pub decision_bytes: usize,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -43,6 +47,9 @@ impl Default for Limits {
             captures: 0,
             requests: 24,
             no_progress: 3,
+            candidates: 96,
+            candidate_bytes: 16384,
+            decision_bytes: 16384,
         }
     }
 }
@@ -60,7 +67,10 @@ impl Limits {
                 && self.final_seconds > 0.
                 && self.final_seconds <= 10.
                 && (262144..=8 * 1024 * 1024).contains(&self.evidence_bytes)
-                && self.captures == 0,
+                && self.captures == 0
+                && (1..=254).contains(&self.candidates)
+                && (1024..=65536).contains(&self.candidate_bytes)
+                && (1024..=32768).contains(&self.decision_bytes),
             "invalid_limits",
         )
     }

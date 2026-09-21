@@ -44,7 +44,7 @@ Each JSON-lines request has exactly `version:1`, increasing `id`, `method` and
 `params`. Replies contain `version`, matching `id`, `receipts`, and exactly one
 of `result` or `error`. Errors are bounded classification codes; arbitrary
 exception text and stderr are not captured. Duplicate keys are rejected at every
-depth. Requests cap at32KiB, responses at192KiB, with tighter field limits.
+depth. Requests cap at64KiB, responses at384KiB, with tighter field limits.
 
 | Method | Parameters | Result |
 |---|---|---|
@@ -96,6 +96,32 @@ integer-only restriction without changing existing integer trace hashes.
 It is not arbitrary-precision numeric canonicalization. Actual clock changes
 remain changes: a privileged time-bearing view can fail exact replay, and must
 not be rounded or normalized to manufacture agreement. Captures remain unavailable.
+
+## Host-configured menu bounds
+
+Existing configurations retain 96 adapter candidates, 16 KiB of encoded candidate
+records and 16 KiB per decision request. Trusted hosts can set `candidates`
+(1–254), `candidate_bytes` (1–64 KiB) and `decision_bytes` (1–32 KiB) in Limits.
+Stop is added separately, keeping the existing Choice maximum of 255 options.
+The controller validates the entire menu initially and again before execution;
+no provider/client reply can change these settings. Over-limit menus are refused,
+never pruned. Observation views remain capped at 4 KiB, and all input, call,
+time, cancellation, freshness and total evidence limits remain in force.
+
+A wider controller menu can still exceed a separately configured provider bound.
+The [optional providers](JEV-RUST.md) accept an explicit `request_bytes` setting;
+16 KiB remains the default, with a 64 KiB ceiling for the complete encoded body.
+Responses still cap at 16 KiB. Expanded providers reserve up to 256 KiB of receipt
+space before dispatch. The process-provider boundary conservatively reserves
+256 KiB for any remote receipt, so a small remaining evidence allowance can now
+stop earlier; it never increases the episode's total evidence limit.
+
+Local method and [decision transports](INTERACTION.md) have bounded envelopes
+large enough for admitted requests, complete action schemas and receipts. Legacy
+wire/replay versions and existing Python clients remain supported. Consumers
+must use the matching updated bridge/client package and executable when opting
+into wider menus. These synthetic checks establish contract behavior, not a
+provider's ability to choose well from a large menu.
 
 ## External decisions
 

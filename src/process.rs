@@ -16,7 +16,7 @@ use tokio::{
     sync::Mutex,
 };
 
-const MAX_MESSAGE: usize = 196608;
+const MAX_MESSAGE: usize = 393216;
 struct Rpc {
     child: Child,
     input: ChildStdin,
@@ -52,7 +52,7 @@ impl Rpc {
         require(self.outgoing.is_empty(), "protocol_write_pending")?;
         self.outgoing = encoded(&request)?;
         self.outgoing.push(b'\n');
-        require(self.outgoing.len() <= 32768, "protocol_request_size")
+        require(self.outgoing.len() <= 65536, "protocol_request_size")
     }
     async fn receive(&mut self) -> Result<Reply> {
         loop {
@@ -96,7 +96,7 @@ impl Rpc {
             .ok_or_else(|| Stop::from("provider_evidence_size"))?;
         require(
             rows.len() <= 1
-                && encoded(rows)?.len() <= 131072
+                && encoded(rows)?.len() <= 262144
                 && (method == "select" || rows.is_empty()),
             "provider_evidence_size",
         )?;
@@ -253,7 +253,7 @@ impl Provider for ProcessProvider {
         "process-provider"
     }
     fn evidence_limit(&self) -> usize {
-        131072
+        262144
     }
     async fn select(&mut self, request: Value) -> Result<String> {
         self.rpc.lock().await.call("select", request).await

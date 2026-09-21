@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 
-pub const MAX_MESSAGE: usize = 32768;
+pub const MAX_MESSAGE: usize = 65536;
 pub const MAX_REPLY: usize = 4096;
 
 pub fn choice_tool(candidates: &serde_json::Map<String, Value>) -> Value {
