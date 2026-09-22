@@ -6,11 +6,16 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 
 ## 2026-09-22 — fresh lexical baseline and coding-model diagnostics
 
-[Issue #24](https://github.com/FieldmouseWorks/redshirt/issues/24) extends the
+[Issue #24](https://github.com/FieldmouseWorks/redshirt/issues/24) and
+[PR #25](https://github.com/FieldmouseWorks/redshirt/pull/25), runtime/tests
+`9e9a5ed4eb15027a5510ea08bfc0b6b1e83faebe`, extend the
 [context contract](CONTEXT-COMPARISON.md#version-2-lexical-retrieval-and-a-fixed-coding-model)
 with deterministic Rust BM25 retrieval and fixed Codex diagnostics in both arms.
-[Conary #1057](https://github.com/FieldmouseWorks/Conary/issues/1057) owns four
-fresh cases and independent product checks. The first pilot stays frozen.
+[Conary #1057](https://github.com/FieldmouseWorks/Conary/issues/1057) and
+[PR #1059](https://github.com/FieldmouseWorks/Conary/pull/1059), corpus/exporter
+`79ce07ed20718e5b971b258c3b45ebc242b1a89b`, own four fresh cases and independent
+product checks. The first pilot stays frozen. These PRs remain stacked on the
+first pilot's unmerged PRs; no protected integration was bypassed.
 
 Version 2 reserves Jev selector calls separately from CLI diagnostic turns.
 The trusted CLI executable/catalog are hashed, execution tools disabled, and
@@ -22,8 +27,45 @@ from Jev dollar estimates. CLI turns are not exact HTTP-attempt counts.
 Injected protocol checks and local fake-server checks precede live collection.
 The latter exercised the actual Rust CLI transport: one successful fake response
 validated, and an injected HTTP 500 stopped after one request with retries set
-to zero. No paid model call was used for those checks. This slice remains under
-review; consumer results and the final verification record follow collection.
+to zero. No paid model call was used for those checks.
+
+One separately bounded live campaign completed four Jev selections and eight
+diagnostic CLI turns requesting `gpt-6-astra`, low effort, with no retry,
+replacement, tool event or failure. The frozen manifest was
+`0e260354d3eca545c109af6e5a624ad1b369e6e718710f7e63de5a7d19eb6626`.
+BM25 resolved 2/4 cases and Jev-selected context 3/4: calibration 1/2 versus 2/2,
+held-out 1/2 versus 1/2. Declared essential evidence retained was 6/8 versus 8/8;
+insufficient-evidence answers were two versus one. Mandatory hashes matched.
+Offline replay and a separate consumer audit verified all recorded requests,
+choices, grades and accounting with zero model calls.
+
+The improvement was one calibration case. Both arms abstained on a held-out
+case whose declared essential set omitted a helper needed for the full answer;
+8/8 labelled retention therefore did not establish complete evidence. The
+consumer records this limitation and owns a
+[fresh corpus completeness audit](https://github.com/FieldmouseWorks/Conary/issues/1060).
+No post-run case replacement or regrading was performed. Keep Jev experimental;
+this result does not support a production routing change or a held-out gain.
+
+Jev used 30,739 input / 328 output tokens (USD0.001291038 estimated; full
+reservation USD0.011010048 under USD0.012). Codex used 27,648 input / 97 output
+tokens for baseline and 27,461 / 136 for treatment; both reported zero cached
+input tokens. Subscription billing and combined dollar cost are unknown.
+Median case time was 5.057 s versus 4.832 s, but total observed provider time
+rose from 20.627 s to 22.290 s; four samples do not establish a speed advantage.
+Campaign wall time was 43.871 s. Treatment used about 1% fewer actual context
+bytes under equal limits. The allowance is closed; no further live calls are
+authorized by this record.
+
+Self-review passed 41 all-feature and 39 default Rust tests, both clippy modes,
+fmt/build, the first pilot's live/mock replay and fresh mock replay. Eleven
+context tests include lexical ranking, label isolation, mixed-provider replay,
+strict transcripts, budget exhaustion, unexpected tools, output caps and process
+cancellation. All six hosted checks passed at the runtime head. The consumer
+passed 46 backing tests, exporter negative controls, router tests and doc truth.
+No delegated coding worker was used; Codex only supplied benchmark diagnoses.
+Raw host captures stay local. The CLI/profile pin does not guarantee a backend
+snapshot or byte-identical ambient context; temporary session/path fields vary.
 
 ## 2026-09-22 — bounded diagnostic context comparison
 
