@@ -4,6 +4,63 @@ This page records demonstrated behavior, its limits and the next bounded slice.
 The [progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1) links
 ongoing updates; implementation issues and PRs own their exact acceptance checks.
 
+## 2026-09-22 — bounded diagnostic context comparison
+
+[Issue #22](https://github.com/FieldmouseWorks/redshirt/issues/22) and
+[PR #23](https://github.com/FieldmouseWorks/redshirt/pull/23), runtime/tests
+`51ccd7b4b0ce059d2bf0bb5bcbf7bf0e3abe149c`, add the read-only Rust
+[`redshirt-context` runner](CONTEXT-COMPARISON.md). Consumers own source-pinned
+cases, actual owner packets, deterministic baseline order and independent truth.
+Rust owns typed Jev judgments, immutable mandatory context, byte/chunk limits,
+whole-campaign admission, per-call reservations, exact receipts and offline
+replay. Ordinary action selection retains its existing contract. Native HTTPS
+now honors validated host request-byte limits; a no-network regression covers
+the previous hard-coded 16 KiB rejection.
+
+The first consumer, [Conary #1055](https://github.com/FieldmouseWorks/Conary/issues/1055)
+and [PR #1056](https://github.com/FieldmouseWorks/Conary/pull/1056), owns exporter
+revision `9564efd458cdb8f039bb3209dd8162e71f5ba77b`, source revision
+`180bd662516080b7523c9cee069396ae14b0f064`, and the full consumer report. Its
+manifest was frozen as
+`7b2e8c529c4b8138f739f6772c29f5b05f5e9ee895f2fc57313220bc548ed6e4` before collection.
+
+One live campaign completed all 12 calls using `jev-1.13.0`, with no retry,
+failure, fallback, replacement or tuning. Both arms used the same downstream
+Choice, mandatory policy and context ceilings; treatment added one relevance
+batch per case. Calibration accuracy was 1/2 baseline and 2/2 treatment;
+held-out accuracy tied at 2/2. Labelled essential evidence retained was 3/8 versus
+8/8; the baseline returned insufficient evidence once. Mandatory hashes matched
+throughout, and offline replay reproduced all requests, selections, grades and
+accounting with zero provider calls.
+
+Baseline used 18,839 input tokens across four calls (USD0.000791238 estimated);
+treatment used 47,095 across eight calls including selection (USD0.001977990).
+Total estimated provider cost was USD0.002769228, with actual billing and cache
+usage unknown. Full reservation was USD0.033030144 under the USD0.04 ceiling.
+Median case provider time was 303.3 ms baseline and 572.8 ms treatment; total
+campaign wall time was 4.675 s. The treatment retained about 6.5% more actual
+context bytes under the same budget. All 32 typed answers validated with exact
+probability totals. This live allowance is closed.
+
+Self-review: `cargo test --locked --all-features` passed 35 tests, all-feature
+clippy, fmt and build passed at the runtime head. Earlier slice checks passed
+33 default Rust tests, default clippy, and 60 Python tests with one optional
+HTTPX test skipped locally. The final code change strengthened only context
+replay accounting and was followed by the full all-feature Rust suite. All six
+hosted checks passed at runtime head. Consumer backing tests (8 diagnostics,
+2 startup tests, 1 promotion test), exporter negative controls and documentation
+checks passed. Five Rust context tests include label isolation, mandatory
+context, malformed/cancelled calls, reservations, tampering and model-free replay.
+No delegated worker was used.
+
+This is a small positive evidence-selection result. The accuracy improvement was
+on calibration; the two held-out cases tied. Four hand-selected closed-choice
+cases, including two from one subsystem, cannot establish general coding-agent
+quality or a production routing policy. Cost increased 2.5-fold, median latency
+increased, and startup/cache effects are unmeasured. Next: a fresh consumer corpus
+against a stronger deterministic baseline and a fixed downstream coding model,
+under a new bounded allowance. Production context policy is unchanged.
+
 ## 2026-09-21 — host-configured wider action menus
 
 [Issue #20](https://github.com/FieldmouseWorks/redshirt/issues/20), runtime/tests
