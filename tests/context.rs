@@ -47,6 +47,8 @@ fn inputs() -> (Manifest, Oracle) {
         })
         .collect();
     let manifest = Manifest {
+        baseline: None,
+        diagnostic: None,
         version: 1,
         source_revision: "a".repeat(40),
         required: vec![chunk("policy", "MANDATORY_POLICY")],
@@ -77,6 +79,321 @@ fn inputs() -> (Manifest, Oracle) {
             .collect(),
     };
     (manifest, oracle)
+}
+
+fn coding_profile() -> codex::Profile {
+    codex::Profile {
+        model: "synthetic-coder".into(),
+        effort: "low".into(),
+        cli_version: "codex-cli 0.154.0".into(),
+        cli_sha256: "a".repeat(64),
+        catalog: json!({"models":[{"slug":"synthetic-coder","apply_patch_tool_type":null,
+            "experimental_supported_tools":[],"node_repl_disabled":true}]}),
+    }
+}
+
+fn mixed_inputs() -> (Manifest, Oracle) {
+    let (mut manifest, mut oracle) = inputs();
+    manifest.version = 2;
+    manifest.baseline = Some("bm25_v1".into());
+    manifest.diagnostic = Some(coding_profile());
+    manifest.limits.max_reserved_usd = 0.006;
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    (manifest, oracle)
+}
+
+struct Coding {
+    seen: Arc<Mutex<Vec<Value>>>,
+    fail: bool,
+}
+#[async_trait]
+impl codex::Transport for Coding {
+    async fn run(&mut self, body: &Value, _: &CancellationToken) -> Result<codex::Transcript> {
+        self.seen.lock().unwrap().push(body.clone());
+        let choice = if body["state"]["evidence"].to_string().contains("needle") {
+            "right"
+        } else {
+            "wrong"
+        };
+        let item = if self.fail {
+            json!({"type":"command_execution","command":"forbidden"})
+        } else {
+            json!({"type":"agent_message","text":json!({"choice":choice}).to_string()})
+        };
+        Ok(codex::Transcript {
+            stdout: [
+                json!({"type":"thread.started"}),
+                json!({"type":"turn.started"}),
+                json!({"type":"item.completed","item":item}),
+                json!({"type":"turn.completed","usage":{
+                    "input_tokens":101,"cached_input_tokens":50,"output_tokens":12}}),
+            ]
+            .iter()
+            .map(|e| format!("{e}\n"))
+            .collect(),
+            stderr: String::new(),
+            exit_code: Some(0),
+            stop: None,
+        })
+    }
+}
+
+#[test]
+fn lexical_baseline_uses_task_identifiers_and_stable_ties_without_choice_labels() {
+    let (mut manifest, _) = mixed_inputs();
+    let case = &mut manifest.cases[0];
+    case.task = "Verify cached metadata hash".into();
+    case.chunks = vec![
+        chunk("a", "General background."),
+        chunk("b", "fn verify_cached_metadata_hash() {}"),
+        chunk("c", "General background."),
+    ];
+    let ranked = lexical::ranking(case);
+    assert_eq!(
+        ranked.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+        ["b", "a", "c"]
+    );
+    assert!(ranked[0].1 > 0.0);
+    case.diagnoses
+        .insert("bait".into(), "General background".repeat(100));
+    assert_eq!(lexical::ranking(case), ranked);
+    case.chunks[0] = chunk(
+        "a",
+        &format!("verify_cached_metadata_hash {}", "padding ".repeat(100)),
+    );
+    assert_eq!(lexical::ranking(case)[0].0, "b");
+    case.task = "No matching terms".into();
+    assert_eq!(
+        lexical::ranking(case)
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b", "c"]
+    );
+}
+
+#[tokio::test]
+async fn mixed_provider_pairing_replays_with_separate_costs_and_no_oracle_leak() {
+    let (manifest, oracle) = mixed_inputs();
+    let mut requests = Vec::new();
+    let temp = tempfile::tempdir().unwrap();
+    for changed in [false, true] {
+        let mut oracle = oracle.clone();
+        if changed {
+            for truth in oracle.cases.values_mut() {
+                truth.diagnosis = "wrong".into();
+            }
+        }
+        let (provider, jev_seen) = provider(&manifest, false, false);
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let diagnostic = codex::Diagnostic::new(
+            Coding {
+                seen: seen.clone(),
+                fail: false,
+            },
+            coding_profile(),
+        )
+        .unwrap();
+        let output = temp
+            .path()
+            .join(if changed { "changed" } else { "original" });
+        let report = campaign_with_diagnostic(
+            manifest.clone(),
+            oracle,
+            provider,
+            diagnostic,
+            &output,
+            false,
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(report["complete"], true);
+        assert_eq!(report["live_calls"], 0);
+        assert_eq!(report["analysis"]["jev_attempts"], 2);
+        assert_eq!(report["analysis"]["codex_turn_attempts"], 4);
+        assert_eq!(report["reserved_codex_turns"], 4);
+        assert_eq!(report["reserved_usd"], json!(2.0 * per_call_usd()));
+        let coding_requests = seen.lock().unwrap().clone();
+        assert_eq!(coding_requests.len(), 4);
+        for request in &coding_requests {
+            assert!(
+                request["state"]["mandatory"]
+                    .to_string()
+                    .contains("MANDATORY_POLICY")
+            );
+            assert!(!request.to_string().contains("GRADER_ONLY_CANARY"));
+            assert!(request["state"].get("split").is_none());
+        }
+        for row in report["analysis"]["rows"].as_array().unwrap() {
+            let treatment = row["arm"] == "treatment";
+            assert_eq!(row["correct"], treatment != changed);
+            assert_eq!(row["confidence"], Value::Null);
+        }
+        for row in report["analysis"]["summary"].as_array().unwrap() {
+            assert_eq!(row["estimated_usd"], Value::Null);
+            assert_eq!(row["codex_cached_input_tokens"], 50);
+        }
+        assert_eq!(replay(&output).unwrap()["analysis"], report["analysis"]);
+        requests.push((jev_seen.lock().unwrap().clone(), coding_requests));
+    }
+    assert_eq!(requests[0], requests[1]);
+}
+
+#[tokio::test]
+async fn unexpected_coding_tool_stops_before_any_selection_and_preserves_reservation() {
+    let (manifest, oracle) = mixed_inputs();
+    let (provider, jev_seen) = provider(&manifest, false, false);
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let diagnostic = codex::Diagnostic::new(
+        Coding {
+            seen: seen.clone(),
+            fail: true,
+        },
+        coding_profile(),
+    )
+    .unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("failure");
+    let report = campaign_with_diagnostic(
+        manifest,
+        oracle,
+        provider,
+        diagnostic,
+        &output,
+        false,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["complete"], false);
+    assert_eq!(report["error"], "codex_unexpected_event");
+    assert_eq!(report["reserved_codex_turns"], 1);
+    assert_eq!(report["reserved_usd"], 0.0);
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    assert!(jev_seen.lock().unwrap().is_empty());
+    assert_eq!(replay(&output).unwrap()["verified"], true);
+}
+
+#[tokio::test]
+async fn coding_transcript_rejects_missing_usage_extra_answers_and_unoffered_choice() {
+    use codex::Transport;
+    let body = json!({"choices":{"insufficient":"missing evidence"}});
+    let original = codex::Mock
+        .run(&body, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(codex::parse(&original, &body).is_ok());
+    for stdout in [
+        original.stdout.replace("\"cached_input_tokens\":0,", ""),
+        original.stdout.replace("insufficient", "unoffered"),
+        original.stdout.clone() + "{\"type\":\"turn.started\"}\n",
+        original
+            .stdout
+            .replace("\"output_tokens\":10", "\"output_tokens\":-1"),
+    ] {
+        let mut transcript = original.clone();
+        transcript.stdout = stdout;
+        assert!(codex::parse(&transcript, &body).is_err());
+    }
+}
+
+#[tokio::test]
+async fn coding_turn_cap_and_pending_receipt_prevent_extra_dispatch() {
+    let profile = coding_profile();
+    let body = codex::request(
+        &profile,
+        json!({}),
+        &BTreeMap::from([("insufficient".into(), "missing evidence".into())]),
+    )
+    .unwrap();
+    let mut diagnostic = codex::Diagnostic::new(codex::Mock, profile).unwrap();
+    let cancel = CancellationToken::new();
+    for i in 1..=8 {
+        diagnostic.ask(body.clone(), &cancel).await.unwrap();
+        assert!(diagnostic.ask(body.clone(), &cancel).await.is_err());
+        assert_eq!(diagnostic.calls(), i);
+        assert!(diagnostic.take_evidence().is_some());
+    }
+    assert!(diagnostic.ask(body, &cancel).await.is_err());
+    assert_eq!(diagnostic.calls(), 8);
+    assert!(diagnostic.take_evidence().is_none());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn coding_cli_enforces_eof_tool_settings_identity_output_bounds_and_cancellation() {
+    use codex::Transport;
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let executable = temp.path().join("fake-codex");
+    let pid_path = temp.path().join("child.pid");
+    let body = json!({"choices":{"insufficient":"missing evidence"}});
+    for mode in ["normal", "oversize", "encoding", "cancel"] {
+        let script = format!(
+            r#"#!/usr/bin/python3
+import json,os,sys,time
+from pathlib import Path
+args=sys.argv[1:]
+assert '--ignore-user-config' in args and '--ignore-rules' in args
+assert 'features.shell_tool=false' in args and 'features.multi_agent=false' in args
+assert 'features.code_mode=false' in args and 'web_search="disabled"' in args
+assert 'TYPESAFE_API_KEY' not in os.environ
+assert sorted(p.name for p in Path.cwd().iterdir()) == ['catalog.json','instructions.md','schema.json']
+assert 'choices' in json.load(sys.stdin)
+mode={mode:?}
+if mode=='cancel':
+    Path({pid:?}).write_text(str(os.getpid()))
+    time.sleep(30)
+if mode=='oversize':
+    os.write(1,b'x'*40000); sys.exit(0)
+if mode=='encoding':
+    os.write(1,b'\xff'*30000); sys.exit(0)
+for event in [{{'type':'thread.started'}},{{'type':'turn.started'}},
+              {{'type':'item.completed','item':{{'type':'agent_message','text':'{{"choice":"insufficient"}}'}}}},
+              {{'type':'turn.completed','usage':{{'input_tokens':10,'cached_input_tokens':0,'output_tokens':2}}}}]:
+    print(json.dumps(event))
+"#,
+            pid = pid_path.to_str().unwrap()
+        );
+        std::fs::write(&executable, script).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut profile = coding_profile();
+        assert!(codex::Cli::new(executable.clone(), profile.clone()).is_err());
+        profile.cli_sha256 = codex::binary_digest(&executable).unwrap();
+        let mut cli = codex::Cli::new(executable.clone(), profile).unwrap();
+        let cancel = CancellationToken::new();
+        let trigger = cancel.clone();
+        let pid = pid_path.clone();
+        let watcher = tokio::spawn(async move {
+            if mode == "cancel" {
+                while !pid.exists() {
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                }
+                trigger.cancel();
+            }
+        });
+        let transcript =
+            tokio::time::timeout(std::time::Duration::from_secs(5), cli.run(&body, &cancel))
+                .await
+                .unwrap()
+                .unwrap();
+        watcher.await.unwrap();
+        assert!(transcript.stdout.len() <= codex::MAX_STDOUT);
+        assert!(transcript.stderr.len() <= codex::MAX_STDERR);
+        if mode == "normal" {
+            assert!(codex::parse(&transcript, &body).is_ok(), "{transcript:?}");
+        } else {
+            assert!(transcript.stop.is_some(), "{transcript:?}");
+            assert!(codex::parse(&transcript, &body).is_err());
+        }
+        if mode == "cancel" {
+            assert_eq!(transcript.stop.as_deref(), Some("cancelled"));
+            let pid = std::fs::read_to_string(&pid_path).unwrap();
+            #[cfg(target_os = "linux")]
+            assert!(!std::path::Path::new(&format!("/proc/{pid}")).exists());
+        }
+    }
 }
 
 struct Synthetic {

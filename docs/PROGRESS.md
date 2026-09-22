@@ -4,6 +4,27 @@ This page records demonstrated behavior, its limits and the next bounded slice.
 The [progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1) links
 ongoing updates; implementation issues and PRs own their exact acceptance checks.
 
+## 2026-09-22 — fresh lexical baseline and coding-model diagnostics
+
+[Issue #24](https://github.com/FieldmouseWorks/redshirt/issues/24) extends the
+[context contract](CONTEXT-COMPARISON.md#version-2-lexical-retrieval-and-a-fixed-coding-model)
+with deterministic Rust BM25 retrieval and fixed Codex diagnostics in both arms.
+[Conary #1057](https://github.com/FieldmouseWorks/Conary/issues/1057) owns four
+fresh cases and independent product checks. The first pilot stays frozen.
+
+Version 2 reserves Jev selector calls separately from CLI diagnostic turns.
+The trusted CLI executable/catalog are hashed, execution tools disabled, and
+responses restricted to one offered JSON choice. Rust bounds output, preserves
+failure evidence, kills/reaps on cancellation and replays without either model.
+Codex subscription billing remains unknown; its tokens/cache usage are separate
+from Jev dollar estimates. CLI turns are not exact HTTP-attempt counts.
+
+Injected protocol checks and local fake-server checks precede live collection.
+The latter exercised the actual Rust CLI transport: one successful fake response
+validated, and an injected HTTP 500 stopped after one request with retries set
+to zero. No paid model call was used for those checks. This slice remains under
+review; consumer results and the final verification record follow collection.
+
 ## 2026-09-22 — bounded diagnostic context comparison
 
 [Issue #22](https://github.com/FieldmouseWorks/redshirt/issues/22) and

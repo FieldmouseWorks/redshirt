@@ -4,6 +4,7 @@ use std::path::PathBuf;
 async fn execute() -> Result<()> {
     let mut args = std::env::args().skip(1);
     let (mut manifest, mut oracle, mut output, mut replay) = (None, None, None, None);
+    let mut codex_executable = None;
     let (mut live, mut preflight) = (false, false);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -11,13 +12,22 @@ async fn execute() -> Result<()> {
             "--oracle" if oracle.is_none() => oracle = args.next().map(PathBuf::from),
             "--output" if output.is_none() => output = args.next().map(PathBuf::from),
             "--replay" if replay.is_none() => replay = args.next().map(PathBuf::from),
+            "--codex-executable" if codex_executable.is_none() => {
+                codex_executable = args.next().map(PathBuf::from)
+            }
             "--live" if !live => live = true,
             "--preflight" if !preflight => preflight = true,
             _ => return Err("invalid_arguments".into()),
         }
     }
     let result = if let Some(replay) = replay {
-        if live || preflight || manifest.is_some() || oracle.is_some() || output.is_some() {
+        if live
+            || preflight
+            || manifest.is_some()
+            || oracle.is_some()
+            || output.is_some()
+            || codex_executable.is_some()
+        {
             return Err("invalid_arguments".into());
         }
         context::replay(&replay)?
@@ -27,7 +37,7 @@ async fn execute() -> Result<()> {
             &oracle.ok_or_else(|| Stop::from("oracle_required"))?,
         )?;
         if preflight {
-            if live || output.is_some() {
+            if live || output.is_some() || codex_executable.is_some() {
                 return Err("invalid_arguments".into());
             }
             context::preflight(&manifest, &oracle)?
@@ -46,30 +56,42 @@ async fn execute() -> Result<()> {
                 {
                     let key = std::env::var("TYPESAFE_API_KEY")
                         .map_err(|_| Stop::from("missing_api_key"))?;
-                    context::campaign(
-                        manifest,
-                        oracle,
-                        jev::Jev::live(key, config)?,
-                        &output,
-                        true,
-                        &cancel,
-                    )
-                    .await
+                    let provider = jev::Jev::live(key, config)?;
+                    if let Some(profile) = manifest.diagnostic.clone() {
+                        let executable = codex_executable
+                            .ok_or_else(|| Stop::from("codex_executable_required"))?;
+                        let transport = context::codex::Cli::new(executable, profile.clone())?;
+                        let diagnostic = context::codex::Diagnostic::new(transport, profile)?;
+                        context::campaign_with_diagnostic(
+                            manifest, oracle, provider, diagnostic, &output, true, &cancel,
+                        )
+                        .await
+                    } else {
+                        if codex_executable.is_some() {
+                            return Err("invalid_arguments".into());
+                        }
+                        context::campaign(manifest, oracle, provider, &output, true, &cancel).await
+                    }
                 }
                 #[cfg(not(feature = "jev-http"))]
                 {
                     Err(Stop::from("jev_http_feature_required"))
                 }
             } else {
-                context::campaign(
-                    manifest,
-                    oracle,
-                    jev::Jev::new(context::MockTransport, config)?,
-                    &output,
-                    false,
-                    &cancel,
-                )
-                .await
+                if codex_executable.is_some() {
+                    return Err("invalid_arguments".into());
+                }
+                let provider = jev::Jev::new(context::MockTransport, config)?;
+                if let Some(profile) = manifest.diagnostic.clone() {
+                    let diagnostic =
+                        context::codex::Diagnostic::new(context::codex::Mock, profile)?;
+                    context::campaign_with_diagnostic(
+                        manifest, oracle, provider, diagnostic, &output, false, &cancel,
+                    )
+                    .await
+                } else {
+                    context::campaign(manifest, oracle, provider, &output, false, &cancel).await
+                }
             };
             signal.abort();
             run?

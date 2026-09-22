@@ -76,9 +76,10 @@ fn stage_request(
 
 /// The oracle never reaches this function or the provider; it is used only by
 /// independent analysis after the recorded responses have been collected.
-async fn collect<T: jev::Transport>(
+async fn collect<T: jev::Transport, D: codex::Transport>(
     manifest: &Manifest,
     provider: &mut jev::Jev<T>,
+    diagnostic: &mut Option<codex::Diagnostic<D>>,
     output: &Path,
     cancel: &CancellationToken,
     report: &mut Value,
@@ -90,6 +91,7 @@ async fn collect<T: jev::Transport>(
         .open(output.join("calls.jsonl"))
         .map_err(|_| Stop::from("context_evidence_io"))?;
     let mut used = 0;
+    let (mut reserved_jev, mut reserved_codex) = (0, 0);
     for (index, case) in manifest.cases.iter().enumerate() {
         let mut scores = None;
         for phase in phases(index) {
@@ -105,28 +107,46 @@ async fn collect<T: jev::Transport>(
                 "context_call_budget",
             )?;
             let reserved = calls.len() + 1;
+            let coding = diagnostic.is_some() && phase != "selection";
+            if coding {
+                reserved_codex += 1;
+            } else {
+                reserved_jev += 1;
+            }
             require(
-                reserved as f64 * per_call_usd() <= manifest.limits.max_reserved_usd,
+                reserved_jev as f64 * per_call_usd() <= manifest.limits.max_reserved_usd
+                    && reserved_codex <= 8,
                 "context_cost_budget",
             )?;
             report["reserved_calls"] = reserved.into();
-            report["reserved_usd"] = json!(reserved as f64 * per_call_usd());
+            report["reserved_usd"] = json!(reserved_jev as f64 * per_call_usd());
+            if manifest.diagnostic.is_some() {
+                report["reserved_codex_turns"] = reserved_codex.into();
+            }
             report["pending"] = json!({"case":case.id,"phase":phase});
             checkpoint(output, report)?;
             let started = Instant::now();
-            let result = tokio::select! {
-                biased;
-                _ = cancel.cancelled() => Err(Stop::from("cancelled")),
-                result = provider.ask(state, questions) => result,
+            let (result, receipt) = if coding {
+                let diagnostic = diagnostic.as_mut().expect("configured diagnostic");
+                let body = codex::request(diagnostic.profile(), state, &case.diagnoses)?;
+                let result = diagnostic.ask(body, cancel).await.map(|()| None);
+                (result, diagnostic.take_evidence())
+            } else {
+                let result = tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => Err(Stop::from("cancelled")),
+                    result = provider.ask(state, questions) => result.map(Some),
+                };
+                let mut receipts = provider.take_evidence();
+                require(receipts.len() <= 1, "context_receipt_count")?;
+                (result, receipts.pop())
             };
-            let mut receipts = provider.take_evidence();
-            require(receipts.len() <= 1, "context_receipt_count")?;
             let call = Call {
                 case: case.id.clone(),
                 phase: phase.into(),
                 elapsed_ms: started.elapsed().as_secs_f64() * 1000.0,
                 error: result.as_ref().err().map(|e| e.0.clone()),
-                receipt: receipts.pop(),
+                receipt,
             };
             let mut bytes = encoded(&call)?;
             bytes.push(b'\n');
@@ -141,10 +161,11 @@ async fn collect<T: jev::Transport>(
             used += bytes.len();
             calls.push(call);
             report["pending"] = Value::Null;
-            report["transport_attempts"] = provider.calls().into();
+            report["transport_attempts"] =
+                (provider.calls() + diagnostic.as_ref().map_or(0, |d| d.calls())).into();
             checkpoint(output, report)?;
             match result {
-                Ok(answers) if phase == "selection" => scores = Some(answers),
+                Ok(Some(answers)) if phase == "selection" => scores = Some(answers),
                 Ok(_) => {}
                 Err(error) => {
                     report["error"] = error.0.into();
@@ -156,6 +177,87 @@ async fn collect<T: jev::Transport>(
     Ok(calls)
 }
 
+struct Observation {
+    answers: Option<Answers>,
+    choice: Option<String>,
+    confidence: Value,
+    usage: Option<Value>,
+}
+
+fn observation(
+    call: &Call,
+    expected: &Value,
+    questions: &Questions,
+    coding: bool,
+    serial: usize,
+) -> Result<Observation> {
+    let mut observed = Observation {
+        answers: None,
+        choice: None,
+        confidence: Value::Null,
+        usage: None,
+    };
+    let Some(receipt) = &call.receipt else {
+        require(call.error.is_some(), "context_missing_receipt")?;
+        return Ok(observed);
+    };
+    require(
+        receipt["request"] == *expected
+            && receipt["request_sha256"] == sha256(&encoded(expected)?)
+            && receipt["model"] == expected["model"]
+            && receipt["call"] == serial,
+        "context_receipt_binding",
+    )?;
+    if coding {
+        require(
+            receipt["kind"] == "codex_exec"
+                && receipt["reserved_turns"] == 1
+                && receipt["deadline_secs"] == codex::DEADLINE_SECS
+                && receipt["reserved_usd"].is_null(),
+            "context_receipt_binding",
+        )?;
+    } else {
+        require(
+            receipt["reserved_input_tokens"] == jev::MAX_TOKENS
+                && receipt["reserved_usd"] == json!(per_call_usd())
+                && receipt["question_count"] == questions.len(),
+            "context_receipt_binding",
+        )?;
+    }
+    if call.error.is_some() {
+        require(
+            receipt["outcome"] == "failed" || receipt["outcome"] == "interrupted",
+            "context_receipt_outcome",
+        )?;
+        return Ok(observed);
+    }
+    require(receipt["outcome"] == "accepted", "context_receipt_outcome")?;
+    let usage = if coding {
+        let transcript = serde_json::from_value(receipt["transcript"].clone())
+            .map_err(|_| Stop::from("codex_transcript"))?;
+        let (choice, usage) = codex::parse(&transcript, expected)?;
+        observed.choice = Some(choice);
+        usage
+    } else {
+        let raw = receipt["response"]
+            .as_str()
+            .ok_or_else(|| Stop::from("context_response"))?;
+        let answers = jev::recorded_answers(raw.as_bytes(), questions)?;
+        if let Some(Answer::Choice {
+            choice, confidence, ..
+        }) = answers.get("diagnosis")
+        {
+            observed.choice = Some(choice.clone());
+            observed.confidence = json!(confidence);
+        }
+        observed.answers = Some(answers);
+        decode(raw.as_bytes())?["usage"].clone()
+    };
+    require(receipt["usage"] == usage, "context_usage_binding")?;
+    observed.usage = Some(usage);
+    Ok(observed)
+}
+
 fn analyze(manifest: &Manifest, oracle: &Oracle, calls: &[Call]) -> Result<Value> {
     require(
         calls.len() <= manifest.cases.len() * 3,
@@ -165,7 +267,7 @@ fn analyze(manifest: &Manifest, oracle: &Oracle, calls: &[Call]) -> Result<Value
     let mut costs = Vec::new();
     let mut failures = Vec::new();
     let mut position = 0;
-    let mut attempts = 0;
+    let (mut jev_attempts, mut codex_attempts) = (0, 0);
     for (index, case) in manifest.cases.iter().enumerate() {
         let mut scores = None;
         let mut selection_ms = 0.0;
@@ -183,68 +285,58 @@ fn analyze(manifest: &Manifest, oracle: &Oracle, calls: &[Call]) -> Result<Value
             )?;
             let (state, questions, selected) =
                 stage_request(manifest, case, phase, scores.as_ref())?;
-            let expected = request(state.clone(), &questions);
-            let mut input_tokens = None;
-            let answers = if let Some(receipt) = &call.receipt {
-                attempts += 1;
-                require(
-                    receipt["request"] == expected
-                        && receipt["request_sha256"] == sha256(&encoded(&expected)?)
-                        && receipt["model"] == jev::MODEL
-                        && receipt["call"] == attempts
-                        && receipt["reserved_input_tokens"] == jev::MAX_TOKENS
-                        && receipt["reserved_usd"] == json!(per_call_usd())
-                        && receipt["question_count"] == questions.len(),
-                    "context_receipt_binding",
-                )?;
-                if call.error.is_none() {
-                    require(receipt["outcome"] == "accepted", "context_receipt_outcome")?;
-                    let raw = receipt["response"]
-                        .as_str()
-                        .ok_or_else(|| Stop::from("context_response"))?;
-                    let answers = jev::recorded_answers(raw.as_bytes(), &questions)?;
-                    let response = decode(raw.as_bytes())?;
-                    require(
-                        receipt["usage"] == response["usage"],
-                        "context_usage_binding",
-                    )?;
-                    input_tokens = response["usage"]["input_tokens"].as_u64();
-                    Some(answers)
-                } else {
-                    require(
-                        receipt["outcome"] == "failed" || receipt["outcome"] == "interrupted",
-                        "context_receipt_outcome",
-                    )?;
-                    None
-                }
+            let coding = manifest.diagnostic.is_some() && phase != "selection";
+            let expected = if coding {
+                codex::request(
+                    manifest.diagnostic.as_ref().expect("configured diagnostic"),
+                    state.clone(),
+                    &case.diagnoses,
+                )?
             } else {
-                require(call.error.is_some(), "context_missing_receipt")?;
-                None
+                request(state.clone(), &questions)
             };
-            costs.push(json!({"case":case.id,"split":case.split,
+            let serial = if coding {
+                &mut codex_attempts
+            } else {
+                &mut jev_attempts
+            };
+            if call.receipt.is_some() {
+                *serial += 1;
+            }
+            let observed = observation(call, &expected, &questions, coding, *serial)?;
+            let input_tokens = observed
+                .usage
+                .as_ref()
+                .and_then(|u| u["input_tokens"].as_u64());
+            let mut cost = json!({"case":case.id,"split":case.split,
                 "arm":if phase == "baseline" {"baseline"} else {"treatment"},
                 "phase":phase,"elapsed_ms":call.elapsed_ms,"input_tokens":input_tokens,
-                "estimated_usd":input_tokens.map(|n| n as f64*jev::INPUT_USD_PER_MILLION/1e6),
-                "unknown_usage":call.receipt.is_some() && input_tokens.is_none()}));
+                "estimated_usd":if coding { None } else { input_tokens.map(|n| n as f64*jev::INPUT_USD_PER_MILLION/1e6) },
+                "unknown_usage":call.receipt.is_some() && input_tokens.is_none()});
+            if manifest.diagnostic.is_some() {
+                cost["provider"] = if coding { "codex" } else { "jev" }.into();
+                cost["usage"] = observed.usage.clone().unwrap_or(Value::Null);
+            }
+            costs.push(cost);
             if let Some(error) = &call.error {
                 require(position == calls.len(), "context_calls_after_failure")?;
                 failures.push(json!({"case":case.id,"phase":phase,"error":error}));
                 break;
             }
-            let answers = answers.ok_or_else(|| Stop::from("context_missing_answers"))?;
             if phase == "selection" {
-                scores = Some(answers);
+                scores = Some(
+                    observed
+                        .answers
+                        .ok_or_else(|| Stop::from("context_missing_answers"))?,
+                );
                 selection_ms = call.elapsed_ms;
             } else {
-                let Answer::Choice {
-                    choice, confidence, ..
-                } = &answers["diagnosis"]
-                else {
-                    return Err("context_diagnosis_type".into());
-                };
+                let choice = observed
+                    .choice
+                    .ok_or_else(|| Stop::from("context_diagnosis_type"))?;
                 let truth = &oracle.cases[&case.id];
                 rows.push(json!({"case":case.id,"split":case.split,"arm":phase,
-                    "choice":choice,"correct":choice == &truth.diagnosis,"confidence":confidence,
+                    "choice":choice,"correct":choice == truth.diagnosis,"confidence":observed.confidence,
                     "selected":selected,"missing_essential":truth.essential.iter().filter(|id| !selected.contains(id)).collect::<Vec<_>>(),
                     "context_bytes":encoded(&state)?.len(),"context_sha256":sha256(&encoded(&state)?),
                     "mandatory_sha256":sha256(&encoded(&state["mandatory"])?),
@@ -269,7 +361,7 @@ fn analyze(manifest: &Manifest, oracle: &Oracle, calls: &[Call]) -> Result<Value
                 .iter()
                 .filter(|c| json!(c.split) == split)
                 .count();
-            summary.push(json!({"split":split,"arm":arm,"planned":planned,"graded":rows.len(),
+            let mut item = json!({"split":split,"arm":arm,"planned":planned,"graded":rows.len(),
                 "correct":rows.iter().filter(|r| r["correct"] == true).count(),
                 "insufficient":rows.iter().filter(|r| r["choice"] == "insufficient").count(),
                 "ungraded":planned-rows.len(),"calls":costs.len(),
@@ -277,20 +369,84 @@ fn analyze(manifest: &Manifest, oracle: &Oracle, calls: &[Call]) -> Result<Value
                 "input_tokens":costs.iter().filter_map(|r| r["input_tokens"].as_u64()).sum::<u64>(),
                 "estimated_usd":costs.iter().filter_map(|r| r["estimated_usd"].as_f64()).sum::<f64>(),
                 "provider_elapsed_ms":costs.iter().filter_map(|r| r["elapsed_ms"].as_f64()).sum::<f64>(),
-                "unknown_usage_calls":costs.iter().filter(|r| r["unknown_usage"] == true).count()}));
+                "unknown_usage_calls":costs.iter().filter(|r| r["unknown_usage"] == true).count()});
+            if manifest.diagnostic.is_some() {
+                item["jev_estimated_usd"] = item["estimated_usd"].clone();
+                item["estimated_usd"] = Value::Null;
+                item["codex_input_tokens"] = json!(
+                    costs
+                        .iter()
+                        .filter(|c| c["provider"] == "codex")
+                        .filter_map(|c| c["input_tokens"].as_u64())
+                        .sum::<u64>()
+                );
+                item["codex_cached_input_tokens"] = json!(
+                    costs
+                        .iter()
+                        .filter(|c| c["provider"] == "codex")
+                        .filter_map(|c| c["usage"]["cached_input_tokens"].as_u64())
+                        .sum::<u64>()
+                );
+                item["codex_output_tokens"] = json!(
+                    costs
+                        .iter()
+                        .filter(|c| c["provider"] == "codex")
+                        .filter_map(|c| c["usage"]["output_tokens"].as_u64())
+                        .sum::<u64>()
+                );
+            }
+            summary.push(item);
         }
     }
-    Ok(
-        json!({"rows":rows,"calls":costs,"failures":failures,"summary":summary,
-        "transport_attempts":attempts,"complete":calls.len()==manifest.cases.len()*3 && failures.is_empty(),
-        "cache_usage":"not_exposed_by_provider","billed_usd":null}),
-    )
+    let mut analysis = json!({"rows":rows,"calls":costs,"failures":failures,"summary":summary,
+        "transport_attempts":jev_attempts+codex_attempts,"complete":calls.len()==manifest.cases.len()*3 && failures.is_empty(),
+        "cache_usage":"not_exposed_by_provider","billed_usd":null});
+    if manifest.diagnostic.is_some() {
+        analysis["jev_attempts"] = jev_attempts.into();
+        analysis["codex_turn_attempts"] = codex_attempts.into();
+        analysis["cache_usage"] = "codex_cli_reported_tokens_only_jev_unknown".into();
+        analysis["billing"] = "codex_subscription_unknown_jev_estimate_separate".into();
+    }
+    Ok(analysis)
 }
 
 pub async fn campaign<T: jev::Transport>(
     manifest: Manifest,
     oracle: Oracle,
+    provider: jev::Jev<T>,
+    output: &Path,
+    live: bool,
+    cancel: &CancellationToken,
+) -> Result<Value> {
+    run_campaign::<T, codex::Mock>(manifest, oracle, provider, None, output, live, cancel).await
+}
+
+pub async fn campaign_with_diagnostic<T: jev::Transport, D: codex::Transport>(
+    manifest: Manifest,
+    oracle: Oracle,
+    provider: jev::Jev<T>,
+    diagnostic: codex::Diagnostic<D>,
+    output: &Path,
+    live: bool,
+    cancel: &CancellationToken,
+) -> Result<Value> {
+    run_campaign(
+        manifest,
+        oracle,
+        provider,
+        Some(diagnostic),
+        output,
+        live,
+        cancel,
+    )
+    .await
+}
+
+async fn run_campaign<T: jev::Transport, D: codex::Transport>(
+    manifest: Manifest,
+    oracle: Oracle,
     mut provider: jev::Jev<T>,
+    mut diagnostic: Option<codex::Diagnostic<D>>,
     output: &Path,
     live: bool,
     cancel: &CancellationToken,
@@ -300,6 +456,23 @@ pub async fn campaign<T: jev::Transport>(
         provider.calls() == 0 && provider.name() == if live { "jev-live" } else { "jev-mock" },
         "context_provider_mode",
     )?;
+    require(
+        diagnostic.is_some() == manifest.diagnostic.is_some(),
+        "context_diagnostic_mode",
+    )?;
+    if let Some(diagnostic) = &diagnostic {
+        require(
+            diagnostic.calls() == 0
+                && diagnostic.is_live() == live
+                && diagnostic.profile().digest()?
+                    == manifest
+                        .diagnostic
+                        .as_ref()
+                        .expect("configured profile")
+                        .digest()?,
+            "context_diagnostic_identity",
+        )?;
+    }
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
@@ -312,18 +485,37 @@ pub async fn campaign<T: jev::Transport>(
     write_new(&output.join("manifest.json"), &manifest)?;
     write_new(&output.join("oracle.json"), &oracle)?;
     let started = Instant::now();
-    let mut report = json!({"version":1,"mode":if live {"live"} else {"mock"},
+    let mut report = json!({"version":manifest.version,"mode":if live {"live"} else {"mock"},
         "quality_evidence":live,"model":jev::MODEL,"manifest_sha256":manifest.digest()?,
         "oracle_sha256":sha256(&encoded(&oracle)?),"complete":false,"error":null,
         "reserved_calls":0,"reserved_usd":0.0,"pending":null,"transport_attempts":0});
+    if let Some(profile) = &manifest.diagnostic {
+        report["coding_model"] = profile.model.clone().into();
+        report["diagnostic_profile_sha256"] = profile.digest()?.into();
+        report["reserved_codex_turns"] = 0.into();
+        report["usd_reservation_scope"] = "jev_only_codex_subscription_billing_unknown".into();
+    }
     checkpoint(output, &report)?;
-    let collected = collect(&manifest, &mut provider, output, cancel, &mut report).await;
+    let collected = collect(
+        &manifest,
+        &mut provider,
+        &mut diagnostic,
+        output,
+        cancel,
+        &mut report,
+    )
+    .await;
     match collected {
         Ok(calls) => {
             let analysis = analyze(&manifest, &oracle, &calls)?;
             report["complete"] = analysis["complete"].clone();
             report["analysis"] = analysis;
-            report["live_calls"] = if live { provider.calls() } else { 0 }.into();
+            report["live_calls"] = if live {
+                provider.calls() + diagnostic.as_ref().map_or(0, |d| d.calls())
+            } else {
+                0
+            }
+            .into();
             report["wall_elapsed_ms"] = json!(started.elapsed().as_secs_f64() * 1000.0);
             checkpoint(output, &report)?;
             Ok(report)
@@ -341,7 +533,7 @@ pub fn replay(output: &Path) -> Result<Value> {
         read_inputs(&output.join("manifest.json"), &output.join("oracle.json"))?;
     let report = load(&output.join("report.json"), MAX_ARTIFACT)?;
     require(
-        report["version"] == 1
+        report["version"] == manifest.version
             && report["model"] == jev::MODEL
             && report["manifest_sha256"] == manifest.digest()?
             && report["oracle_sha256"] == sha256(&encoded(&oracle)?)
@@ -373,10 +565,23 @@ pub fn replay(output: &Path) -> Result<Value> {
         Some("mock") => false,
         _ => return Err("context_replay_mode".into()),
     };
+    let reserved_jev = if manifest.diagnostic.is_some() {
+        calls.iter().filter(|c| c.phase == "selection").count()
+    } else {
+        calls.len()
+    };
+    if let Some(profile) = &manifest.diagnostic {
+        require(
+            report["coding_model"] == profile.model
+                && report["diagnostic_profile_sha256"] == profile.digest()?
+                && report["reserved_codex_turns"] == calls.len() - reserved_jev,
+            "context_replay_accounting",
+        )?;
+    }
     require(
         report["quality_evidence"] == live
             && report["reserved_calls"] == calls.len()
-            && report["reserved_usd"] == json!(calls.len() as f64 * per_call_usd())
+            && report["reserved_usd"] == json!(reserved_jev as f64 * per_call_usd())
             && report["transport_attempts"] == analysis["transport_attempts"]
             && report["live_calls"]
                 == if live {
