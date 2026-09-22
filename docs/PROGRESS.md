@@ -4,6 +4,64 @@ This page records demonstrated behavior, its limits and the next bounded slice.
 The [progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1) links
 ongoing updates; implementation issues and PRs own their exact acceptance checks.
 
+## 2026-09-22 — coverage-seeking baseline matches the completed Jev run
+
+[Conary #1061](https://github.com/FieldmouseWorks/Conary/issues/1061) and
+[PR #1062](https://github.com/FieldmouseWorks/Conary/pull/1062) add a 97-line
+Rust `coverage-greedy-v1` selector using visible typed package effects and checked
+attempt counts. It prefers untried transitions toward unseen package states;
+projected outcomes never count as observations. Package policy remains
+Conary-owned in its retained Rust pilot. No shared runtime or controller
+migration was needed.
+
+At Conary runtime `bc6824b9d2c9aba6debbe115573b583160408e38`, the completed
+matched pair reached all six fixture states in eight-operation episodes:
+
+| Policy | Actions to all six states | Full episode time | Provider calls |
+| --- | ---: | ---: | ---: |
+| Greedy Rust policy | 6 | 20.551 s | 0 |
+| Jev 1.13.0, first episode | 7 | 23.000 s | 8 |
+
+Both made seven checked state changes. Jev's second episode reached five states
+in six operations, then its seventh response selected an option at 0.41 while
+another had 0.42. The existing maximum-choice validator refused the proposal
+before execution. This disagrees with the
+[documented Choice contract](https://docs.typesafe.ai/api#choice-answer);
+[issue #26](https://github.com/FieldmouseWorks/redshirt/issues/26) records the
+provider follow-up. No validator relaxation, replacement choice or live retry
+was made. The model response's server-side cause remains unknown.
+
+The frozen campaign planned three repetitions per arm, eight actions each,
+24 maximum HTTP requests, a USD0.07 conservative ceiling and a 30-minute approved
+VM bound. It stopped on that provider failure, leaving three original episodes
+unrun. **The full planned comparison is incomplete.** The same corpus, empty
+baseline, pinned product, candidate generator, goal/history and independent
+checker were used; no tuning followed live outcomes. A local orchestration-key
+error before the first live request was corrected with the completed baseline
+retained and a guarded continuation of unstarted episodes only.
+
+All 22 completed operations and independent package checks matched model-free
+replay. The failed episode's replay covers its concrete prefix, not its provider
+failure. Six bundles, 54 artifact hashes and 23 checked decision contexts were
+audited. Provider access was removed before replay; final checks, cleanup and
+VM shutdown were verified. Actual usage: 15 requests, zero retries, 27,829 input
+and 2,023 output tokens. Estimated cost was USD0.001168818 using the
+[published price](https://docs.typesafe.ai/models) checked 2026-09-22; billed cost
+is unknown and unused allowance is closed. No new package defect was found.
+
+Recommendation: use the greedy policy for this fixture coverage workload.
+The completed pair demonstrates no extra Jev value over it. One small corpus,
+one completed pair and one failed live prefix do not establish general model
+performance. The earlier gain over seeded selection remains historical evidence;
+it does not establish superiority over a coverage-seeking algorithm.
+
+Consumer self-review: 376 library and 16 CLI tests pass (two existing ignored),
+plus inventory, workspace Clippy, fmt, doc truth, line caps and harness build.
+The initial CLI-test compile error was fixed before live use. Conary's stacked
+hosted gates await its parent; no new shared runtime test or live trial is
+claimed by this documentation update. Implementation stayed in the parent
+session with no delegated worker.
+
 ## 2026-09-21 — host-configured wider action menus
 
 [Issue #20](https://github.com/FieldmouseWorks/redshirt/issues/20), runtime/tests
