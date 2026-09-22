@@ -70,6 +70,11 @@ The [Rust comparison runner](docs/COMPARISON.md) pairs consumer-owned baselines
 with the optional provider across fixed cases, with independent task metrics,
 campaign-wide reservations and separate held-out confidence counts.
 
+The experimental [context comparison](docs/CONTEXT-COMPARISON.md) measures a
+consumer's deterministic evidence ordering against Jev relevance selection,
+followed by the same diagnostic model in both arms. Required instructions remain
+fixed, grading stays independent, and default checks and replay use no model.
+
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never
 reported as a reset. Their evidence is explicitly nonreplayable; replay is refused

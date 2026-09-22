@@ -173,6 +173,11 @@ fn validate(raw: &[u8], questions: &Questions) -> Result<(Response, Value)> {
     Ok((response, totals.into()))
 }
 
+pub(crate) fn recorded_answers(raw: &[u8], questions: &Questions) -> Result<Answers> {
+    require(raw.len() <= MAX_BYTES, "provider_response_size")?;
+    validate(raw, questions).map(|(response, _)| response.answers)
+}
+
 pub struct Jev<T> {
     transport: T,
     config: Config,
@@ -196,29 +201,39 @@ impl<T: Transport> Jev<T> {
     pub fn calls(&self) -> u32 {
         self.calls
     }
-}
 
-#[async_trait]
-impl<T: Transport> Provider for Jev<T> {
-    fn name(&self) -> &str {
-        self.name
-    }
-    fn evidence_limit(&self) -> usize {
-        if self.config.request_bytes > MAX_BYTES {
-            262144
-        } else {
-            131072
+    /// Bounded advisory judgments, with the same receipts and transport as action
+    /// selection. No action policy or configured auxiliary questions are implicit.
+    pub async fn ask(&mut self, state: Value, questions: Questions) -> Result<Answers> {
+        require(
+            self.config.questions.is_empty() && self.config.policy.min_confidence.is_none(),
+            "judgment_action_config",
+        )?;
+        require(
+            (state.is_object() || state.is_array() || state.is_string())
+                && !questions.is_empty()
+                && questions.len() <= 8
+                && questions.keys().all(|id| !id.is_empty() && id.len() <= 80),
+            "invalid_judgment_batch",
+        )?;
+        for question in questions.values() {
+            question.validate()?;
         }
+        require(encoded(&questions)?.len() <= 8192, "judgment_question_size")?;
+        self.request(
+            json!({"model":MODEL,"state":state,"questions":questions}),
+            &questions,
+        )
+        .await
     }
 
-    async fn select(&mut self, request: Value) -> Result<String> {
+    async fn request(&mut self, body: Value, questions: &Questions) -> Result<Answers> {
         // An interrupted or completed receipt must be drained before another call.
         require(self.receipt.is_none(), "provider_receipt_pending")?;
         require(
             self.calls < self.config.request_limit,
             "provider_request_budget",
         )?;
-        let (body, questions) = batch(request, &self.config)?;
         let payload = encoded(&body)?;
         require(
             payload.len() <= self.config.request_bytes,
@@ -237,7 +252,7 @@ impl<T: Transport> Provider for Jev<T> {
             started,
         ));
 
-        let result: Result<String> = async {
+        let result: Result<Answers> = async {
             let (status, raw) = tokio::time::timeout(DEADLINE, self.transport.post(payload))
                 .await
                 .map_err(|_| Stop::from("provider_timeout"))?
@@ -250,19 +265,13 @@ impl<T: Transport> Provider for Jev<T> {
             receipt["response_redacted"] = redacted.into();
             receipt["response_truncated"] = truncated.into();
             require(status == 200, "provider_http_status")?;
-            let (response, totals) = validate(&raw, &questions)?;
+            let (response, totals) = validate(&raw, questions)?;
             receipt["usage"] = json!(response.usage);
             receipt["estimated_usd"] =
                 (response.usage.input_tokens as f64 * INPUT_USD_PER_MILLION / 1e6).into();
             receipt["probability_policy"] = totals;
-            let decision = self.config.policy.assess(&response.answers["action"])?;
-            receipt["policy"] = json!(decision);
-            if decision.disposition == Disposition::Abstain {
-                receipt["outcome"] = "abstained".into();
-                return Err("provider_uncertain".into());
-            }
             receipt["outcome"] = "accepted".into();
-            Ok(decision.action)
+            Ok(response.answers)
         }
         .await;
         if let Err(error) = &result {
@@ -273,6 +282,41 @@ impl<T: Transport> Provider for Jev<T> {
             receipt["error"] = error.0.clone().into();
         }
         result
+    }
+}
+
+#[async_trait]
+impl<T: Transport> Provider for Jev<T> {
+    fn name(&self) -> &str {
+        self.name
+    }
+    fn evidence_limit(&self) -> usize {
+        if self.config.request_bytes > MAX_BYTES {
+            262144
+        } else {
+            131072
+        }
+    }
+
+    async fn select(&mut self, request: Value) -> Result<String> {
+        // Check these before preparing a new batch, preserving the existing
+        // interrupted-receipt and exhausted-budget precedence.
+        require(self.receipt.is_none(), "provider_receipt_pending")?;
+        require(
+            self.calls < self.config.request_limit,
+            "provider_request_budget",
+        )?;
+        let (body, questions) = batch(request, &self.config)?;
+        let answers = self.request(body, &questions).await?;
+        let decision = self.config.policy.assess(&answers["action"])?;
+        let receipt = &mut self.receipt.as_mut().expect("active receipt").0;
+        receipt["policy"] = json!(decision);
+        if decision.disposition == Disposition::Abstain {
+            receipt["outcome"] = "abstained".into();
+            receipt["error"] = "provider_uncertain".into();
+            return Err("provider_uncertain".into());
+        }
+        Ok(decision.action)
     }
 
     fn take_evidence(&mut self) -> Vec<Value> {
