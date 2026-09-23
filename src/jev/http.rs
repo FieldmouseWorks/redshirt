@@ -126,7 +126,7 @@ mod tests {
             Jev::live(
                 "synthetic-only-key".into(),
                 Config {
-                    request_bytes: 65537,
+                    request_bytes: MAX_REQUEST_BYTES + 1,
                     ..Config::default()
                 }
             )

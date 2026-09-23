@@ -8,9 +8,10 @@ use tokio::{
     process::Command,
 };
 
-// Even worst-case JSON escaping fits the enclosing 256 KiB call record.
+// Output remains bounded independently of the larger v3 input packet.
 pub const MAX_STDOUT: usize = 32768;
 pub const MAX_STDERR: usize = 4096;
+pub const MAX_REQUEST_BYTES: usize = 512 * 1024;
 pub const DEADLINE_SECS: u64 = 60;
 pub const INSTRUCTIONS: &str = "Analyze only the task and source evidence in the supplied JSON. Preserve its mandatory project policy. Return exactly the requested JSON choice object. Use insufficient if the evidence does not establish an answer. Do not call tools, ask questions, access files, or use outside knowledge to fill missing implementation details. No action or code execution is authorized.";
 
@@ -194,7 +195,7 @@ impl<T: Transport> Diagnostic<T> {
         require(
             body["model"] == self.profile.model
                 && body["profile_sha256"] == self.profile.digest()?
-                && encoded(&body)?.len() <= 32768,
+                && encoded(&body)?.len() <= MAX_REQUEST_BYTES,
             "codex_request",
         )?;
         self.calls += 1;

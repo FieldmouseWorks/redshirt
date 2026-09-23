@@ -47,15 +47,16 @@ fn inputs() -> (Manifest, Oracle) {
         })
         .collect();
     let manifest = Manifest {
-        baseline: None,
+        context_policy: Some(CONTEXT_POLICY.into()),
+        baseline: Some("bm25_v1".into()),
         diagnostic: None,
-        version: 1,
+        version: 3,
         source_revision: "a".repeat(40),
         required: vec![chunk("policy", "MANDATORY_POLICY")],
         limits: Limits {
-            context_bytes: 4096,
-            selected_chunks: 1,
-            request_bytes: 8192,
+            context_bytes: None,
+            selected_chunks: None,
+            request_bytes: None,
             max_calls: 6,
             max_reserved_usd: 0.04,
         },
@@ -92,10 +93,20 @@ fn coding_profile() -> codex::Profile {
     }
 }
 
+fn legacy_inputs() -> (Manifest, Oracle) {
+    let (mut manifest, mut oracle) = inputs();
+    manifest.version = 1;
+    manifest.context_policy = None;
+    manifest.baseline = None;
+    manifest.limits.context_bytes = Some(4096);
+    manifest.limits.selected_chunks = Some(1);
+    manifest.limits.request_bytes = Some(8192);
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    (manifest, oracle)
+}
+
 fn mixed_inputs() -> (Manifest, Oracle) {
     let (mut manifest, mut oracle) = inputs();
-    manifest.version = 2;
-    manifest.baseline = Some("bm25_v1".into());
     manifest.diagnostic = Some(coding_profile());
     manifest.limits.max_reserved_usd = 0.006;
     oracle.manifest_sha256 = manifest.digest().unwrap();
@@ -226,8 +237,7 @@ async fn mixed_provider_pairing_replays_with_separate_costs_and_no_oracle_leak()
             assert!(request["state"].get("split").is_none());
         }
         for row in report["analysis"]["rows"].as_array().unwrap() {
-            let treatment = row["arm"] == "treatment";
-            assert_eq!(row["correct"], treatment != changed);
+            assert_eq!(row["correct"], !changed);
             assert_eq!(row["confidence"], Value::Null);
         }
         for row in report["analysis"]["summary"].as_array().unwrap() {
@@ -470,6 +480,277 @@ fn provider(
     )
 }
 
+fn noise(length: usize) -> String {
+    let mut seed = 0x8765_4321u32;
+    (0..length)
+        .map(|_| {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[(seed as usize) % 62]
+                as char
+        })
+        .collect()
+}
+
+fn wide_inputs(payload: &str) -> (Manifest, Oracle) {
+    let (mut manifest, mut oracle) = inputs();
+    for case in &mut manifest.cases {
+        case.chunks = (0..8)
+            .map(|i| {
+                chunk(
+                    &format!("e{i}"),
+                    &format!("Essential measured needle. {payload}"),
+                )
+            })
+            .collect();
+        case.baseline_order = (0..8).rev().map(|i| format!("e{i}")).collect();
+        oracle.cases.get_mut(&case.id).unwrap().essential =
+            (0..8).map(|i| format!("e{i}")).collect();
+    }
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    (manifest, oracle)
+}
+
+#[tokio::test]
+async fn v3_keeps_all_eight_excerpts_and_admits_large_escaped_packets() {
+    let payload = "é \" \\ <|endoftext|> ".repeat(200);
+    let (mut manifest, mut oracle) = wide_inputs(&payload);
+    for i in 1..5 {
+        manifest
+            .required
+            .push(chunk(&format!("policy{i}"), "Retain this owner policy."));
+        manifest.cases[0]
+            .mandatory
+            .push(chunk(&format!("owner{i}"), "Retain this case rule."));
+    }
+    manifest.cases[0].task = "Read only diagnosis. ".repeat(220);
+    manifest.cases[0].chunks[0] = chunk(
+        "e0",
+        &format!("Essential measured needle. {}", "stable ".repeat(2600)),
+    );
+    assert!(manifest.cases[0].task.len() > 4096);
+    assert!(manifest.cases[0].chunks[0].text.len() > 16384);
+    assert_eq!(manifest.required.len(), 5);
+    assert_eq!(manifest.cases[0].mandatory.len(), 5);
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    let plan = preflight(&manifest, &oracle).unwrap();
+    assert_eq!(plan["capacity_policy"]["context_policy"], CONTEXT_POLICY);
+    assert_eq!(
+        plan["capacity_policy"]["estimator"],
+        "tiktoken-rs_0.12.0_max_r50k_cl100k_o200k_ordinary_json_v1"
+    );
+    assert_eq!(plan["capacity_policy"]["published_total_tokens"], 64000);
+    assert_eq!(
+        plan["capacity_policy"]["published_state_plus_longest_question_tokens"],
+        32000
+    );
+    assert_eq!(plan["capacity_policy"]["headroom_percent"], 20);
+    assert_eq!(plan["capacity_policy"]["admit_total_tokens"], 51200);
+    assert_eq!(
+        plan["capacity_policy"]["admit_state_plus_longest_question_tokens"],
+        25600
+    );
+    assert_eq!(
+        plan["capacity_policy"]["exact_jev_tokenization_known"],
+        false
+    );
+    assert!(
+        plan["cases"][0]["jev_capacity"]["selection"]["total_estimated_tokens"]
+            .as_u64()
+            .unwrap()
+            <= 51200
+    );
+    assert!(plan["cases"][0]["jev_capacity"]["selection"]["state_plus_longest_question_estimated_tokens"]
+        .as_u64().unwrap() <= 25600);
+    let (provider, seen) = provider(&manifest, false, false);
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("wide");
+    let report = campaign(
+        manifest,
+        oracle,
+        provider,
+        &output,
+        false,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["capacity_policy"], plan["capacity_policy"]);
+    assert_eq!(report["capacity_cases"], plan["cases"]);
+    assert_eq!(report["complete"], true);
+    assert_eq!(replay(&output).unwrap()["provider_calls"], 0);
+    for body in seen.lock().unwrap().iter() {
+        let evidence = body["state"]["evidence"].as_array().unwrap();
+        assert_eq!(evidence.len(), 8);
+        assert_eq!(
+            body["state"]["mandatory"].as_array().unwrap().len(),
+            if body["state"]["task"].as_str().unwrap().len() > 4096 {
+                10
+            } else {
+                6
+            }
+        );
+        assert!(
+            evidence
+                .iter()
+                .any(|c| c["text"].as_str().unwrap().contains("<|endoftext|>"))
+        );
+        assert_eq!(
+            evidence
+                .iter()
+                .map(|c| c["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            ["e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7"]
+        );
+        assert!(encoded(body).unwrap().len() > 32768);
+    }
+    for row in report["analysis"]["rows"].as_array().unwrap() {
+        assert_eq!(row["selected"].as_array().unwrap().len(), 8);
+        assert_eq!(row["missing_essential"], json!([]));
+    }
+}
+
+#[tokio::test]
+async fn late_case_single_question_overflow_rejects_whole_campaign() {
+    let (mut control, mut oracle) = wide_inputs(&noise(3500));
+    preflight(&control, &oracle).unwrap();
+    for chunk in &mut control.cases[1].chunks {
+        *chunk = self::chunk(
+            &chunk.id,
+            &format!("Essential measured needle. {}", noise(5600)),
+        );
+    }
+    oracle.manifest_sha256 = control.digest().unwrap();
+    assert_eq!(
+        preflight(&control, &oracle).unwrap_err().0,
+        "context_capacity_single"
+    );
+    let (provider, seen) = provider(&control, false, false);
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("rejected");
+    assert_eq!(
+        campaign(
+            control,
+            oracle,
+            provider,
+            &output,
+            false,
+            &CancellationToken::new()
+        )
+        .await
+        .unwrap_err()
+        .0,
+        "context_capacity_single"
+    );
+    assert!(seen.lock().unwrap().is_empty());
+    assert!(!output.exists());
+}
+
+#[test]
+fn v3_rejects_legacy_caps_and_explicit_null() {
+    let (manifest, _) = inputs();
+    for field in ["context_bytes", "selected_chunks", "request_bytes"] {
+        let mut value = serde_json::to_value(&manifest).unwrap();
+        value["limits"][field] = json!(2048);
+        let changed: Manifest = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(changed.validate().unwrap_err().0, "context_limits");
+        value["limits"][field] = Value::Null;
+        assert!(serde_json::from_value::<Manifest>(value).is_err());
+    }
+    let mut changed = manifest;
+    changed.context_policy = Some("jev_1_13_exact_v1".into());
+    assert_eq!(changed.validate().unwrap_err().0, "context_protocol");
+}
+
+#[test]
+fn historical_v1_v2_saved_runs_replay_with_zero_calls() {
+    // These are complete mock runs made by the base b61fb56e binary before
+    // the v3 implementation. Replay must reconstruct their old packets.
+    for version in [1, 2] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("tests/fixtures/context-v{version}-saved"));
+        let report = replay(&path).unwrap();
+        assert_eq!(report["verified"], true);
+        assert_eq!(report["provider_calls"], 0);
+        assert_eq!(report["complete"], true);
+    }
+}
+
+#[tokio::test]
+async fn v3_codex_diagnostics_do_not_apply_unused_jev_choice_size_cap() {
+    let (mut manifest, mut oracle) = mixed_inputs();
+    for i in 0..5 {
+        manifest.cases[1]
+            .diagnoses
+            .insert(format!("extra{i}"), "x".repeat(1800));
+    }
+    assert!(
+        encoded(&diagnosis_question(&manifest.cases[1]))
+            .unwrap()
+            .len()
+            > 8192
+    );
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    let plan = preflight(&manifest, &oracle).unwrap();
+    assert_eq!(
+        plan["cases"][1]["jev_capacity"]["diagnosis"]["model_capacity"],
+        "unknown"
+    );
+    let (provider, jev_seen) = provider(&manifest, false, false);
+    let codex_seen = Arc::new(Mutex::new(Vec::new()));
+    let diagnostic = codex::Diagnostic::new(
+        Coding {
+            seen: codex_seen.clone(),
+            fail: false,
+        },
+        coding_profile(),
+    )
+    .unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("codex");
+    let report = campaign_with_diagnostic(
+        manifest,
+        oracle,
+        provider,
+        diagnostic,
+        &output,
+        false,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["complete"], true);
+    assert_eq!(jev_seen.lock().unwrap().len(), 2);
+    assert_eq!(codex_seen.lock().unwrap().len(), 4);
+    assert_eq!(replay(&output).unwrap()["provider_calls"], 0);
+}
+
+#[tokio::test]
+async fn old_manifests_allow_inspection_but_no_new_execution() {
+    let (manifest, oracle) = legacy_inputs();
+    preflight(&manifest, &oracle).unwrap();
+    let (provider, seen) = provider(&manifest, false, false);
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("no_new_v1");
+    assert_eq!(
+        campaign(
+            manifest,
+            oracle,
+            provider,
+            &output,
+            false,
+            &CancellationToken::new()
+        )
+        .await
+        .unwrap_err()
+        .0,
+        "context_campaign_requires_v3"
+    );
+    assert!(seen.lock().unwrap().is_empty());
+    assert!(!output.exists());
+}
+
 #[tokio::test]
 async fn paired_packets_preserve_policy_exclude_truth_and_replay_without_a_provider() {
     let (manifest, oracle) = inputs();
@@ -502,15 +783,9 @@ async fn paired_packets_preserve_policy_exclude_truth_and_replay_without_a_provi
         assert!(request["state"].get("split").is_none());
     }
     for row in report["analysis"]["rows"].as_array().unwrap() {
-        assert_eq!(row["correct"], row["arm"] == "treatment");
-        assert_eq!(
-            row["missing_essential"],
-            if row["arm"] == "treatment" {
-                json!([])
-            } else {
-                json!(["b"])
-            }
-        );
+        assert_eq!(row["correct"], true);
+        assert_eq!(row["missing_essential"], json!([]));
+        assert_eq!(row["selected"], json!(["a", "b", "c"]));
     }
     let replayed = replay(&output).unwrap();
     assert_eq!(replayed["provider_calls"], 0);
@@ -614,15 +889,15 @@ async fn canonical_oracle_size_is_admitted_before_dispatch_and_replays() {
 
 #[test]
 fn declared_essential_count_must_fit_even_when_the_packet_fits_in_bytes() {
-    let (manifest, mut oracle) = inputs();
+    let (manifest, mut oracle) = legacy_inputs();
     oracle.cases.get_mut("c0").unwrap().essential = vec!["a".into(), "b".into()];
     let declared = &oracle.cases["c0"].essential;
-    assert_eq!(declared.len(), manifest.limits.selected_chunks + 1);
+    assert_eq!(declared.len(), manifest.limits.selected_chunks.unwrap() + 1);
     assert!(
         encoded(&state(&manifest, &manifest.cases[0], declared))
             .unwrap()
             .len()
-            < manifest.limits.context_bytes
+            < manifest.limits.context_bytes.unwrap()
     );
     manifest.validate().unwrap();
     oracle.validate(&manifest).unwrap();
@@ -634,11 +909,11 @@ fn declared_essential_count_must_fit_even_when_the_packet_fits_in_bytes() {
 
 #[test]
 fn combined_canonical_essential_packet_must_fit_and_exact_boundary_is_accepted() {
-    let (mut manifest, mut oracle) = inputs();
+    let (mut manifest, mut oracle) = legacy_inputs();
     let case = &mut manifest.cases[0];
     case.chunks[0] = chunk("a", &"é".repeat(200));
     case.chunks[1] = chunk("b", &"é".repeat(200));
-    manifest.limits.selected_chunks = 2;
+    manifest.limits.selected_chunks = Some(2);
     let declared = vec!["b".into(), "a".into()];
     let combined = encoded(&state(&manifest, &manifest.cases[0], &declared))
         .unwrap()
@@ -646,14 +921,14 @@ fn combined_canonical_essential_packet_must_fit_and_exact_boundary_is_accepted()
     let unescaped = serde_json::to_vec(&state(&manifest, &manifest.cases[0], &declared))
         .unwrap()
         .len();
-    manifest.limits.context_bytes = combined - 1;
-    assert!(manifest.limits.context_bytes >= 1024);
-    assert!(unescaped < manifest.limits.context_bytes);
+    manifest.limits.context_bytes = Some(combined - 1);
+    assert!(manifest.limits.context_bytes.unwrap() >= 1024);
+    assert!(unescaped < manifest.limits.context_bytes.unwrap());
     assert!(
         encoded(&state(&manifest, &manifest.cases[0], &[]))
             .unwrap()
             .len()
-            <= manifest.limits.context_bytes
+            <= manifest.limits.context_bytes.unwrap()
     );
     for id in &declared {
         assert!(
@@ -664,7 +939,7 @@ fn combined_canonical_essential_packet_must_fit_and_exact_boundary_is_accepted()
             ))
             .unwrap()
             .len()
-                <= manifest.limits.context_bytes
+                <= manifest.limits.context_bytes.unwrap()
         );
     }
     oracle.cases.get_mut("c0").unwrap().essential = declared;
@@ -689,7 +964,7 @@ fn combined_canonical_essential_packet_must_fit_and_exact_boundary_is_accepted()
     assert_eq!(control["cases"][0]["expected_insufficient_control"], true);
 
     // The exact byte and count ceilings both admit the non-abstention case.
-    manifest.limits.context_bytes = combined;
+    manifest.limits.context_bytes = Some(combined);
     oracle.manifest_sha256 = manifest.digest().unwrap();
     oracle.cases.get_mut("c0").unwrap().diagnosis = "right".into();
     let admitted = preflight(&manifest, &oracle).unwrap();
@@ -704,47 +979,21 @@ fn combined_canonical_essential_packet_must_fit_and_exact_boundary_is_accepted()
 
 #[test]
 fn a_feasible_declaration_is_admitted_even_when_baseline_omits_it() {
-    let (manifest, oracle) = inputs();
+    let (manifest, oracle) = legacy_inputs();
     let admitted = preflight(&manifest, &oracle).unwrap();
     assert_eq!(admitted["cases"][0]["baseline_selected"], json!(["a"]));
     assert_eq!(admitted["cases"][0]["declared_essential_count"], 1);
     assert_eq!(admitted["cases"][0]["declared_essential_feasible"], true);
 }
 
-#[tokio::test]
-async fn rejected_essential_packet_creates_no_output_or_provider_attempts() {
-    let (manifest, mut oracle) = mixed_inputs();
+#[test]
+fn legacy_declared_essential_packet_is_rejected_on_inspection() {
+    let (manifest, mut oracle) = legacy_inputs();
     oracle.cases.get_mut("c0").unwrap().essential = vec!["a".into(), "b".into()];
-    let (provider, jev_seen) = provider(&manifest, false, false);
-    let codex_seen = Arc::new(Mutex::new(Vec::new()));
-    let diagnostic = codex::Diagnostic::new(
-        Coding {
-            seen: codex_seen.clone(),
-            fail: false,
-        },
-        coding_profile(),
-    )
-    .unwrap();
-    let temp = tempfile::tempdir().unwrap();
-    let output = temp.path().join("rejected");
     assert_eq!(
-        campaign_with_diagnostic(
-            manifest,
-            oracle,
-            provider,
-            diagnostic,
-            &output,
-            false,
-            &CancellationToken::new(),
-        )
-        .await
-        .unwrap_err()
-        .0,
+        preflight(&manifest, &oracle).unwrap_err().0,
         "context_declared_essential_chunk_limit"
     );
-    assert!(jev_seen.lock().unwrap().is_empty());
-    assert!(codex_seen.lock().unwrap().is_empty());
-    assert!(!output.exists());
 }
 
 #[tokio::test]
@@ -810,7 +1059,7 @@ async fn invalid_inputs_and_exhausted_judgment_budget_make_no_extra_dispatch() {
     oracle2.manifest_sha256 = "0".repeat(64);
     assert!(preflight(&manifest, &oracle2).is_err());
     let mut too_small = manifest.clone();
-    too_small.limits.context_bytes = 1024;
+    too_small.limits.context_bytes = Some(1024);
     too_small.required[0] = chunk("policy", &"x".repeat(1500));
     assert!(too_small.validate().is_err());
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -875,7 +1124,7 @@ async fn replay_rejects_changed_request_grades_and_accounting() {
     let report_path = output.join("report.json");
     let original = std::fs::read(&report_path).unwrap();
     let mut changed = decode(&original).unwrap();
-    changed["analysis"]["rows"][0]["correct"] = json!(true);
+    changed["analysis"]["rows"][0]["correct"] = json!(false);
     std::fs::write(&report_path, encoded(&changed).unwrap()).unwrap();
     assert!(replay(&output).is_err());
     for (field, value) in [

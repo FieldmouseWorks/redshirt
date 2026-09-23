@@ -27,10 +27,30 @@ The [standing workflow](WORKFLOW.md) was established in completed
 [#28](https://github.com/FieldmouseWorks/redshirt/issues/28) and
 [#29](https://github.com/FieldmouseWorks/redshirt/pull/29), including
 [merge and cleanup authority](WORKFLOW.md#authority-and-effort).
-The selected improvement is
-[offline admission and check evidence #34](https://github.com/FieldmouseWorks/redshirt/issues/34).
+The completed [offline admission and check evidence #34](https://github.com/FieldmouseWorks/redshirt/issues/34)
+now has a follow-up selected by the owner:
+[model-capacity context admission #36](https://github.com/FieldmouseWorks/redshirt/issues/36).
 Its canonical graph records the candidate, review, gates, merge and owned cleanup;
 follow its next action while open. No subsequent outcome is assigned by this page.
+
+## 2026-09-23 — model-capacity context admission
+
+[Issue #36](https://github.com/FieldmouseWorks/redshirt/issues/36) replaces the
+diagnostic pilot's arbitrary selected-excerpt and context-byte budgets for new
+campaigns. Version 3 retains all supplied evidence and uses the published Jev
+request and state-plus-question token ceilings with 20% headroom and an explicit
+surrogate-tokenizer estimate. The provider's exact tokenizer and inference
+framing are unpublished; the owner accepted estimated admission with that
+limitation. See the [current context policy](CONTEXT-COMPARISON.md#current-policy-estimated-model-capacity).
+
+Both diagnostic arms retain the complete available packet when admitted, so
+identical packets are a valid result. Oversized inputs refuse before dispatch;
+transport and evidence reservations remain separate from estimated model
+capacity. Historical version-1/version-2 runs retain their original replay
+semantics. Consumer corpus completeness remains with Conary #1060, and this
+change provides no new live allowance or model-quality result. The canonical
+issue retains source references, negative controls, review, exact candidate
+checks and integration receipts.
 
 ## 2026-09-23 — offline admission and repeatable check evidence
 

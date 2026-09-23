@@ -67,9 +67,15 @@ advisory and cannot bypass admission or change the action menu.
 
 Bounds: eight total questions, 8 KiB config, 16 KiB responses,
 1–12 calls, one in flight, five-second absolute transport/body deadline. Complete
-request bodies default to 16 KiB. Trusted `request_bytes` config accepts 1–64 KiB;
-expanded allowances reserve 256 KiB of receipt space, with no change to the
-controller's total evidence budget. Action Choice supports up to 255 options
+request bodies default to 16 KiB. Trusted `request_bytes` config accepts 1–512 KiB,
+including the larger finite transport allowance needed by
+[version-3 context campaigns](CONTEXT-COMPARISON.md#current-policy-estimated-model-capacity).
+Request bytes bound transport and evidence size; they do not count model tokens.
+Expanded allowances must reserve enough receipt space before dispatch, with no
+change to the controller's total evidence budget. A context-sized allowance can
+therefore exceed the ordinary controller's provider-evidence cap and refuse
+there; context campaigns have their own bounded evidence reservation.
+Action Choice supports up to 255 options
 including stop; the controller's separate host-configured menu limits still apply.
 Oversized requests refuse before dispatch and consume no provider call. Native
 HTTPS pins `https://api.typesafe.ai/v1/systemone` and `jev-1.13.0`, verifies TLS,
@@ -100,6 +106,9 @@ transport, call limits, response validation and drain-before-next-call receipts.
 Caller code retains all authority. The [context comparison](CONTEXT-COMPARISON.md)
 uses this interface for relevance scores and diagnostic choices. Native HTTPS
 honors the validated host `request_bytes` limit; the response cap stays 16 KiB.
+Version-3 context admission separately estimates Jev input tokens with recorded
+headroom and retains all supplied excerpts. Normal action-provider defaults and
+historical receipt accounting remain unchanged.
 
 The existing Rust fixture compares scripted and three-question batched runs:
 identical operations and independent checks, then concrete replay with zero

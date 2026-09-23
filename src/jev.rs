@@ -15,6 +15,9 @@ use std::{
 pub const MODEL: &str = "jev-1.13.0";
 pub const ENDPOINT: &str = "https://api.typesafe.ai/v1/systemone";
 pub const MAX_BYTES: usize = 16384;
+/// Explicit context campaigns may use larger request bodies after their own
+/// model-capacity and campaign-evidence preflight. The default stays 16 KiB.
+pub const MAX_REQUEST_BYTES: usize = 512 * 1024;
 pub const MAX_TOKENS: u32 = 65536;
 pub const DEADLINE: Duration = Duration::from_secs(5);
 pub const INPUT_USD_PER_MILLION: f64 = 0.042;
@@ -74,7 +77,7 @@ impl Config {
         require(
             self.version == 1
                 && (1..=12).contains(&self.request_limit)
-                && (1024..=65536).contains(&self.request_bytes),
+                && (1024..=MAX_REQUEST_BYTES).contains(&self.request_bytes),
             "invalid_provider_config",
         )?;
         require(
@@ -291,7 +294,12 @@ impl<T: Transport> Provider for Jev<T> {
         self.name
     }
     fn evidence_limit(&self) -> usize {
-        if self.config.request_bytes > MAX_BYTES {
+        if self.config.request_bytes > 65536 {
+            // A controller with its independent 256 KiB provider-evidence cap
+            // refuses large contexts before dispatch. Context campaigns have
+            // their own preflight and finite record budget.
+            self.config.request_bytes + 6 * MAX_BYTES + 32768
+        } else if self.config.request_bytes > MAX_BYTES {
             262144
         } else {
             131072

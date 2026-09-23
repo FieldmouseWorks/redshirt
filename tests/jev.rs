@@ -443,7 +443,7 @@ async fn wide_menu_requires_explicit_request_bytes_and_preserves_all_255_options
         assert_eq!(result.is_ok(), allowed == raw.len());
         assert_eq!(exact.calls(), u32::from(allowed == raw.len()));
     }
-    for value in [1023, 65537] {
+    for value in [1023, redshirt::jev::MAX_REQUEST_BYTES + 1] {
         assert!(
             Config {
                 request_bytes: value,

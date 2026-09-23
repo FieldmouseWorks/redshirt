@@ -7,7 +7,13 @@ use std::{
     time::Instant,
 };
 
-const MAX_ARTIFACT: usize = 4 * 1024 * 1024;
+const LEGACY_MAX_ARTIFACT: usize = 4 * 1024 * 1024;
+const MAX_ARTIFACT: usize = 8 * 1024 * 1024;
+const LEGACY_MAX_CALL: usize = 262144;
+const MAX_CALL: usize = 896 * 1024;
+// A canonical JSON string expands by at most six bytes per input byte. The
+// remaining 32 KiB bounds receipt fields, answer policy and call bookkeeping.
+const RECEIPT_OVERHEAD: usize = 32 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -74,6 +80,59 @@ fn stage_request(
     Ok((state(manifest, case, &selected), questions, selected))
 }
 
+pub(super) fn evidence_reservation(manifest: &Manifest) -> Result<Value> {
+    let mut total = 0;
+    let mut largest = 0;
+    for case in &manifest.cases {
+        let selected = case
+            .chunks
+            .iter()
+            .map(|chunk| chunk.id.clone())
+            .collect::<Vec<_>>();
+        let full = state(manifest, case, &selected);
+        let jev_selection = encoded(&request(full.clone(), &scoring_questions(case)))?.len();
+        let jev_diagnosis = encoded(&request(full.clone(), &diagnosis_question(case)))?.len();
+        let codex_diagnosis = manifest
+            .diagnostic
+            .as_ref()
+            .map(|profile| {
+                codex::request(profile, full.clone(), &case.diagnoses)
+                    .and_then(|body| encoded(&body).map(|bytes| bytes.len()))
+            })
+            .transpose()?;
+        for (body_bytes, output_bytes) in [
+            (jev_selection, jev::MAX_BYTES),
+            (
+                codex_diagnosis.unwrap_or(jev_diagnosis),
+                if codex_diagnosis.is_some() {
+                    codex::MAX_STDOUT + codex::MAX_STDERR
+                } else {
+                    jev::MAX_BYTES
+                },
+            ),
+            (
+                codex_diagnosis.unwrap_or(jev_diagnosis),
+                if codex_diagnosis.is_some() {
+                    codex::MAX_STDOUT + codex::MAX_STDERR
+                } else {
+                    jev::MAX_BYTES
+                },
+            ),
+        ] {
+            let reserved = body_bytes + 6 * output_bytes + RECEIPT_OVERHEAD;
+            require(reserved <= MAX_CALL, "context_evidence_record_budget")?;
+            total += reserved;
+            largest = largest.max(reserved);
+        }
+    }
+    require(total <= MAX_ARTIFACT, "context_evidence_campaign_budget")?;
+    Ok(
+        json!({"reserved_call_record_bytes":total,"largest_reserved_call_record_bytes":largest,
+        "single_record_limit_bytes":MAX_CALL,"campaign_limit_bytes":MAX_ARTIFACT,
+        "reservation":"canonical_request_plus_six_times_bounded_output_plus_32768_receipt_bytes"}),
+    )
+}
+
 /// The oracle never reaches this function or the provider; it is used only by
 /// independent analysis after the recorded responses have been collected.
 async fn collect<T: jev::Transport, D: codex::Transport>(
@@ -100,6 +159,10 @@ async fn collect<T: jev::Transport, D: codex::Transport>(
                 return Ok(calls);
             }
             let (state, questions, _) = stage_request(manifest, case, phase, scores.as_ref())?;
+            let coding = diagnostic.is_some() && phase != "selection";
+            if manifest.version == 3 && !coding {
+                capacity::admit(&state, &questions)?;
+            }
             // Reserve and durably checkpoint before a possible dispatch. An
             // interrupted call retains its reservation; there is no resumption.
             require(
@@ -107,7 +170,6 @@ async fn collect<T: jev::Transport, D: codex::Transport>(
                 "context_call_budget",
             )?;
             let reserved = calls.len() + 1;
-            let coding = diagnostic.is_some() && phase != "selection";
             if coding {
                 reserved_codex += 1;
             } else {
@@ -151,7 +213,18 @@ async fn collect<T: jev::Transport, D: codex::Transport>(
             let mut bytes = encoded(&call)?;
             bytes.push(b'\n');
             require(
-                bytes.len() <= 262144 && used + bytes.len() <= MAX_ARTIFACT,
+                bytes.len()
+                    <= if manifest.version == 3 {
+                        MAX_CALL
+                    } else {
+                        LEGACY_MAX_CALL
+                    }
+                    && used + bytes.len()
+                        <= if manifest.version == 3 {
+                            MAX_ARTIFACT
+                        } else {
+                            LEGACY_MAX_ARTIFACT
+                        },
                 "context_evidence_budget",
             )?;
             events
@@ -451,7 +524,8 @@ async fn run_campaign<T: jev::Transport, D: codex::Transport>(
     live: bool,
     cancel: &CancellationToken,
 ) -> Result<Value> {
-    preflight(&manifest, &oracle)?;
+    require(manifest.version == 3, "context_campaign_requires_v3")?;
+    let plan = preflight(&manifest, &oracle)?;
     require(
         provider.calls() == 0 && provider.name() == if live { "jev-live" } else { "jev-mock" },
         "context_provider_mode",
@@ -495,6 +569,9 @@ async fn run_campaign<T: jev::Transport, D: codex::Transport>(
         report["reserved_codex_turns"] = 0.into();
         report["usd_reservation_scope"] = "jev_only_codex_subscription_billing_unknown".into();
     }
+    report["capacity_policy"] = plan["capacity_policy"].clone();
+    report["evidence_reservation"] = plan["evidence_reservation"].clone();
+    report["capacity_cases"] = plan["cases"].clone();
     checkpoint(output, &report)?;
     let collected = collect(
         &manifest,
@@ -531,7 +608,21 @@ async fn run_campaign<T: jev::Transport, D: codex::Transport>(
 pub fn replay(output: &Path) -> Result<Value> {
     let (manifest, oracle) =
         read_inputs(&output.join("manifest.json"), &output.join("oracle.json"))?;
-    let report = load(&output.join("report.json"), MAX_ARTIFACT)?;
+    let artifact_limit = if manifest.version == 3 {
+        MAX_ARTIFACT
+    } else {
+        LEGACY_MAX_ARTIFACT
+    };
+    let report = load(&output.join("report.json"), artifact_limit)?;
+    if manifest.version == 3 {
+        let plan = preflight(&manifest, &oracle)?;
+        require(
+            report["capacity_policy"] == plan["capacity_policy"]
+                && report["evidence_reservation"] == plan["evidence_reservation"]
+                && report["capacity_cases"] == plan["cases"],
+            "context_replay_capacity",
+        )?;
+    }
     require(
         report["version"] == manifest.version
             && report["model"] == jev::MODEL
@@ -544,11 +635,11 @@ pub fn replay(output: &Path) -> Result<Value> {
     let mut bytes = Vec::new();
     fs::File::open(output.join("calls.jsonl"))
         .map_err(|_| Stop::from("context_evidence_io"))?
-        .take(MAX_ARTIFACT as u64 + 1)
+        .take(artifact_limit as u64 + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| Stop::from("context_evidence_io"))?;
     require(
-        bytes.len() <= MAX_ARTIFACT && (bytes.is_empty() || bytes.ends_with(b"\n")),
+        bytes.len() <= artifact_limit && (bytes.is_empty() || bytes.ends_with(b"\n")),
         "context_replay_size",
     )?;
     let mut calls = Vec::new();
