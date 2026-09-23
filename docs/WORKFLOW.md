@@ -100,6 +100,42 @@ record the exact missing input or failed condition and the next action that can
 resolve it. When a new opportunity is not required by the selected outcome,
 record it in the appropriate issue/queue and keep working on the selected outcome.
 
+### Local command receipts
+
+For one local check, `scripts/check_receipt.py` can capture the literal command,
+its raw output and the candidate's Git inputs. Give it a fresh absolute output
+directory outside the checkout; its parent directory must already exist:
+
+```sh
+python3 scripts/check_receipt.py --output /absolute/evidence/check-1 \
+  --cwd "$PWD" --timeout 120 --env REDSHIRT_BIN=/absolute/path/to/redshirt \
+  -- python3 -m unittest discover -s tests -v
+```
+
+The wrapper runs that argv once without a shell or retry. It first writes an
+`incomplete` `receipt.json`, then saves stdout and stderr as raw files. A final
+`passed` status requires child exit zero, readable output artifacts, and matching
+before/after snapshots of HEAD, index entries, tracked files and nonignored
+untracked files. A dirty candidate can pass when it stays unchanged; a temporary
+edit restored before the second snapshot is not detected. Missing or incomplete
+final receipts are never passes. The receipt includes separate wrapper and child
+timings, exact child status, and SHA-256 hashes and sizes for source files and
+files written under the receipt directory. Explicit `--env` values are recorded;
+inherited environment values are not, so never put secrets in `--env` or command
+arguments. Use explicit `--env` paths for a target binary or other relevant local
+configuration.
+
+This is local execution evidence, not a correctness judgment or hosted-check
+attribution. Ignored dependencies and files outside the checkout need separate
+input evidence; a Gitlink/submodule present in the index is rejected before
+dispatch because nested tracked files are outside this snapshot. Output symlinks
+record the link itself, not its target. On this Linux host, a timeout or interrupt
+terminates the child's private process group
+and reaps the direct child. Processes that detach into another session are outside
+that cleanup scope. The incomplete receipt records the child PID and process group
+for manual inspection if the wrapper is forcibly terminated; it does not recover
+or clean up after such a termination.
+
 ## Checks
 
 Run local gates relevant to the changed boundary, and preserve all required

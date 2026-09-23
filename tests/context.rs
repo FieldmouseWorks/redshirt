@@ -612,6 +612,141 @@ async fn canonical_oracle_size_is_admitted_before_dispatch_and_replays() {
     assert_eq!(seen.lock().unwrap().len(), 6);
 }
 
+#[test]
+fn declared_essential_count_must_fit_even_when_the_packet_fits_in_bytes() {
+    let (manifest, mut oracle) = inputs();
+    oracle.cases.get_mut("c0").unwrap().essential = vec!["a".into(), "b".into()];
+    let declared = &oracle.cases["c0"].essential;
+    assert_eq!(declared.len(), manifest.limits.selected_chunks + 1);
+    assert!(
+        encoded(&state(&manifest, &manifest.cases[0], declared))
+            .unwrap()
+            .len()
+            < manifest.limits.context_bytes
+    );
+    manifest.validate().unwrap();
+    oracle.validate(&manifest).unwrap();
+    assert_eq!(
+        preflight(&manifest, &oracle).unwrap_err().0,
+        "context_declared_essential_chunk_limit"
+    );
+}
+
+#[test]
+fn combined_canonical_essential_packet_must_fit_and_exact_boundary_is_accepted() {
+    let (mut manifest, mut oracle) = inputs();
+    let case = &mut manifest.cases[0];
+    case.chunks[0] = chunk("a", &"é".repeat(200));
+    case.chunks[1] = chunk("b", &"é".repeat(200));
+    manifest.limits.selected_chunks = 2;
+    let declared = vec!["b".into(), "a".into()];
+    let combined = encoded(&state(&manifest, &manifest.cases[0], &declared))
+        .unwrap()
+        .len();
+    let unescaped = serde_json::to_vec(&state(&manifest, &manifest.cases[0], &declared))
+        .unwrap()
+        .len();
+    manifest.limits.context_bytes = combined - 1;
+    assert!(manifest.limits.context_bytes >= 1024);
+    assert!(unescaped < manifest.limits.context_bytes);
+    assert!(
+        encoded(&state(&manifest, &manifest.cases[0], &[]))
+            .unwrap()
+            .len()
+            <= manifest.limits.context_bytes
+    );
+    for id in &declared {
+        assert!(
+            encoded(&state(
+                &manifest,
+                &manifest.cases[0],
+                std::slice::from_ref(id)
+            ))
+            .unwrap()
+            .len()
+                <= manifest.limits.context_bytes
+        );
+    }
+    oracle.cases.get_mut("c0").unwrap().essential = declared;
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    manifest.validate().unwrap();
+    oracle.validate(&manifest).unwrap();
+    assert_eq!(
+        preflight(&manifest, &oracle).unwrap_err().0,
+        "context_declared_essential_byte_limit"
+    );
+
+    // This frozen abstention control can be admitted while its declared packet
+    // remains visibly infeasible.
+    oracle.cases.get_mut("c0").unwrap().diagnosis = "insufficient".into();
+    let control = preflight(&manifest, &oracle).unwrap();
+    assert_eq!(control["cases"][0]["declared_essential_count"], 2);
+    assert_eq!(
+        control["cases"][0]["declared_essential_context_bytes"],
+        combined
+    );
+    assert_eq!(control["cases"][0]["declared_essential_feasible"], false);
+    assert_eq!(control["cases"][0]["expected_insufficient_control"], true);
+
+    // The exact byte and count ceilings both admit the non-abstention case.
+    manifest.limits.context_bytes = combined;
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    oracle.cases.get_mut("c0").unwrap().diagnosis = "right".into();
+    let admitted = preflight(&manifest, &oracle).unwrap();
+    assert_eq!(admitted["cases"][0]["declared_essential_count"], 2);
+    assert_eq!(
+        admitted["cases"][0]["declared_essential_context_bytes"],
+        combined
+    );
+    assert_eq!(admitted["cases"][0]["declared_essential_feasible"], true);
+    assert_eq!(admitted["cases"][0]["expected_insufficient_control"], false);
+}
+
+#[test]
+fn a_feasible_declaration_is_admitted_even_when_baseline_omits_it() {
+    let (manifest, oracle) = inputs();
+    let admitted = preflight(&manifest, &oracle).unwrap();
+    assert_eq!(admitted["cases"][0]["baseline_selected"], json!(["a"]));
+    assert_eq!(admitted["cases"][0]["declared_essential_count"], 1);
+    assert_eq!(admitted["cases"][0]["declared_essential_feasible"], true);
+}
+
+#[tokio::test]
+async fn rejected_essential_packet_creates_no_output_or_provider_attempts() {
+    let (manifest, mut oracle) = mixed_inputs();
+    oracle.cases.get_mut("c0").unwrap().essential = vec!["a".into(), "b".into()];
+    let (provider, jev_seen) = provider(&manifest, false, false);
+    let codex_seen = Arc::new(Mutex::new(Vec::new()));
+    let diagnostic = codex::Diagnostic::new(
+        Coding {
+            seen: codex_seen.clone(),
+            fail: false,
+        },
+        coding_profile(),
+    )
+    .unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("rejected");
+    assert_eq!(
+        campaign_with_diagnostic(
+            manifest,
+            oracle,
+            provider,
+            diagnostic,
+            &output,
+            false,
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap_err()
+        .0,
+        "context_declared_essential_chunk_limit"
+    );
+    assert!(jev_seen.lock().unwrap().is_empty());
+    assert!(codex_seen.lock().unwrap().is_empty());
+    assert!(!output.exists());
+}
+
 #[tokio::test]
 async fn malformed_selector_stops_before_treatment_and_keeps_unknown_usage() {
     let (manifest, oracle) = inputs();

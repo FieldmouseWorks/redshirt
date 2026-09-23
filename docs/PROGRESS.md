@@ -6,13 +6,17 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 
 ## Current state
 
-The completed [integration batch #30](https://github.com/FieldmouseWorks/redshirt/issues/30)
-verified main `1f544d440d17d6c5c78a7947dbdaf7e087d972db` on 2026-09-23.
 The Rust controller, external JSON sessions, bounded comparisons, optional native
 provider, host-configured menus and diagnostic context comparisons are merged.
 Python callers remain supported. The [surface inventory](#current-surface) and
 dated entries link historical consumer evidence; merged runtime support does not
 establish model usefulness or complete consumer migrations.
+
+Recent completed repairs include
+[completed-session process status #19](https://github.com/FieldmouseWorks/redshirt/issues/19)
+and [terminal replay #31](https://github.com/FieldmouseWorks/redshirt/issues/31).
+Their issue/PR records retain exact revisions and verification; they build on the
+completed [integration batch #30](https://github.com/FieldmouseWorks/redshirt/issues/30).
 
 Material limits: attached sessions cannot claim reset/replay; consumer rules and
 independent checks stay in adapters; public CI has no browser gate.
@@ -23,13 +27,33 @@ The [standing workflow](WORKFLOW.md) was established in completed
 [#28](https://github.com/FieldmouseWorks/redshirt/issues/28) and
 [#29](https://github.com/FieldmouseWorks/redshirt/pull/29), including
 [merge and cleanup authority](WORKFLOW.md#authority-and-effort).
-The completed subprocess repair is recorded in
-[#19](https://github.com/FieldmouseWorks/redshirt/issues/19) and
-[#32](https://github.com/FieldmouseWorks/redshirt/pull/32). The subsequent
-consumer-driven terminal-replay repair is owned by
-[#31](https://github.com/FieldmouseWorks/redshirt/issues/31); its issue/PR records
-review, gate and integration state. After it closes, no further feature is
-selected by this record.
+The selected improvement is
+[offline admission and check evidence #34](https://github.com/FieldmouseWorks/redshirt/issues/34).
+Its canonical graph records the candidate, review, gates, merge and owned cleanup;
+follow its next action while open. No subsequent outcome is assigned by this page.
+
+## 2026-09-23 — offline admission and repeatable check evidence
+
+[Issue #34](https://github.com/FieldmouseWorks/redshirt/issues/34) addresses concrete
+gaps from the Jev workflow comparison. New context campaign admission checks that
+the consumer's declared essential packet fits the selected-chunk and exact encoded
+context-byte limits. An expected `insufficient` diagnosis explicitly marks an
+abstention control. This structural check cannot discover omitted source
+dependencies or establish semantic sufficiency; the consumer's
+[corpus completeness audit](https://github.com/FieldmouseWorks/Conary/issues/1060)
+remains separate. Historical saved runs retain their existing replay semantics.
+
+Offline provider regressions preserve the sanitized
+[#26](https://github.com/FieldmouseWorks/redshirt/issues/26) distribution, its
+specific rejection, the invalid response receipt and the controller's refusal to
+execute. They do not establish the server-side cause or resolve that issue.
+
+The [workflow](WORKFLOW.md) adds a small command-receipt helper for actual local
+working inputs, command results and raw output. It preserves failed checks and
+detects input changes during a check; it does not infer test correctness or
+implement agent dispatch, recovery or merge authority. The owning issue retains
+negative controls, exact candidate checks, review and integration evidence.
+No new live comparison or production confidence policy is part of this work.
 
 ## 2026-09-23 — concrete replay at a terminal observation
 

@@ -78,13 +78,28 @@ impl Adapter for Fixture {
                     None
                 },
             },
-            candidates: vec![Candidate {
-                id: "increment".into(),
-                description: "Press increment".into(),
-                operation: json!({"button":if self.mode == "candidate" && changed {"replaced"}else{"increment"}}),
-                inputs: 1,
-                needs_ready: true,
-            }],
+            candidates: if self.mode == "issue26" {
+                (0..7)
+                    .map(|i| {
+                        let id = format!("c{i}");
+                        Candidate {
+                            id: id.clone(),
+                            description: format!("Option {i}"),
+                            operation: json!({"button":id}),
+                            inputs: 1,
+                            needs_ready: true,
+                        }
+                    })
+                    .collect()
+            } else {
+                vec![Candidate {
+                    id: "increment".into(),
+                    description: "Press increment".into(),
+                    operation: json!({"button":if self.mode == "candidate" && changed {"replaced"}else{"increment"}}),
+                    inputs: 1,
+                    needs_ready: true,
+                }]
+            },
         })
     }
     async fn verify(&mut self) -> Result<Descriptor> {
@@ -666,6 +681,84 @@ async fn batched_provider_preserves_controller_refusals_and_finalization() {
             }
         );
     }
+}
+
+struct Issue26Transport {
+    raw: Vec<u8>,
+}
+#[async_trait]
+impl jev::Transport for Issue26Transport {
+    async fn post(&mut self, body: Vec<u8>) -> Result<(u16, Vec<u8>)> {
+        let request = decode(&body)?;
+        let criteria = request["questions"]["action"]["criteria"]
+            .as_object()
+            .ok_or_else(|| Stop::from("test_request"))?;
+        assert_eq!(criteria.len(), 8); // seven incident options plus controller stop
+        assert_eq!(criteria["c4"], "Option 4");
+        assert_eq!(criteria["c5"], "Option 5");
+        assert_eq!(criteria["stop"], "Stop the experiment.");
+        Ok((200, self.raw.clone()))
+    }
+}
+
+#[tokio::test]
+async fn issue26_nonmaximum_choice_never_reaches_controller_execution() {
+    let reply = json!({"model":jev::MODEL,"answers":{"action":{"type":"choice","choice":"c4",
+        "confidence":0.5,"probabilities":{"c0":0.0,"c1":0.0,"c2":0.09,"c3":0.08,
+            "c4":0.41,"c5":0.42,"c6":0.0,"stop":0.0}}},
+        "usage":{"input_tokens":10,"output_tokens":2}});
+    let raw = encoded(&reply).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("issue26");
+    let cancel = CancellationToken::new();
+    let mut env = Fixture::new("issue26");
+    let mut provider = jev::Jev::new(
+        Issue26Transport { raw: raw.clone() },
+        jev::Config::default(),
+    )
+    .unwrap();
+
+    let report = run(
+        &mut env,
+        Some(&mut provider),
+        None,
+        &output,
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(report["stop"], "choice_not_maximum");
+    assert_eq!(report["requests"], 1);
+    assert_eq!(report["attempted_inputs"], 0);
+    assert_eq!(report["operations"], json!([]));
+    assert_eq!(report["final"]["ok"], true);
+    assert_eq!(report["cleanup"], true);
+    assert_eq!(provider.calls(), 1);
+    let state = env.state.lock().unwrap();
+    assert_eq!((state.actual, state.expected), (0, 0));
+    assert!(state.finalized && state.closed);
+    drop(state);
+
+    let events = std::fs::read_to_string(output.join("events.jsonl")).unwrap();
+    let rows: Vec<Value> = events
+        .lines()
+        .map(|line| decode(line.as_bytes()).unwrap())
+        .collect();
+    assert!(rows.iter().all(|row| {
+        !matches!(
+            row["event"].as_str(),
+            Some("intent" | "receipt" | "checked")
+        )
+    }));
+    let receipt = rows
+        .iter()
+        .find(|row| row["event"] == "provider_receipt")
+        .unwrap();
+    assert_eq!(receipt["data"]["outcome"], "failed");
+    assert_eq!(receipt["data"]["error"], "choice_not_maximum");
+    assert_eq!(receipt["data"]["response"], String::from_utf8(raw).unwrap());
 }
 
 #[tokio::test]

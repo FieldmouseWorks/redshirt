@@ -7,6 +7,7 @@ use redshirt::{
 };
 use serde_json::{Value, json};
 use std::{
+    collections::BTreeMap,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -165,6 +166,60 @@ async fn malformed_auxiliary_answers_refuse_the_whole_batch() {
         assert!(provider.select(request()).await.is_err());
         assert_eq!(provider.take_evidence()[0]["outcome"], "failed");
     }
+}
+
+fn issue26_questions() -> BTreeMap<String, Question> {
+    BTreeMap::from([(
+        "decision".into(),
+        Question::Choice {
+            instructions: "Select the highest-probability option.".into(),
+            criteria: (0..7)
+                .map(|i| (format!("c{i}"), format!("Option {i}")))
+                .collect(),
+        },
+    )])
+}
+
+fn issue26_reply(choice: &str) -> Value {
+    // Confidence and usage complete the current response envelope. The
+    // sanitized incident records only the choice and its seven probabilities.
+    json!({"model":MODEL,"answers":{"decision":{"type":"choice","choice":choice,
+        "confidence":0.5,"probabilities":{"c0":0.0,"c1":0.0,"c2":0.09,"c3":0.08,
+            "c4":0.41,"c5":0.42,"c6":0.0}}},
+        "usage":{"input_tokens":10,"output_tokens":2}})
+}
+
+#[tokio::test]
+async fn issue26_nonmaximum_choice_is_classified_and_raw_reply_is_retained() {
+    let reply = issue26_reply("c4");
+    let raw = encoded(&reply).unwrap();
+    let mut provider = Jev::new(stub(raw.clone()), Config::default()).unwrap();
+    let error = provider
+        .ask(json!({"incident":26}), issue26_questions())
+        .await
+        .unwrap_err();
+    assert_eq!(error.0, "choice_not_maximum");
+    assert_eq!(provider.calls(), 1);
+
+    let receipt = provider.take_evidence().pop().unwrap();
+    assert_eq!(receipt["outcome"], "failed");
+    assert_eq!(receipt["error"], "choice_not_maximum");
+    assert_eq!(receipt["response"], String::from_utf8(raw).unwrap());
+    assert_eq!(receipt["response_redacted"], false);
+    assert_eq!(receipt["response_truncated"], false);
+    assert!(encoded(&receipt).unwrap().len() <= provider.evidence_limit());
+
+    let maximum = issue26_reply("c5");
+    let mut provider = Jev::new(stub(encoded(&maximum).unwrap()), Config::default()).unwrap();
+    let answers = provider
+        .ask(json!({"incident":26}), issue26_questions())
+        .await
+        .unwrap();
+    assert!(matches!(
+        &answers["decision"],
+        Answer::Choice { choice, .. } if choice == "c5"
+    ));
+    assert_eq!(provider.calls(), 1);
 }
 
 #[tokio::test]
