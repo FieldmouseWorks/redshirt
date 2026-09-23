@@ -4,6 +4,34 @@ This page records demonstrated behavior, its limits and the next bounded slice.
 The [progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1) links
 ongoing updates; implementation issues and PRs own their exact acceptance checks.
 
+## Current state
+
+The merged runtime baseline inspected on 2026-09-23 is
+`08211d1aabd8ab8cf53c1927dbe4a8fc25eb2527` ([PR #21](https://github.com/FieldmouseWorks/redshirt/pull/21)).
+The Rust controller, external JSON sessions, bounded comparison runner, optional
+native provider and host-configured menus are merged. Existing Python callers
+remain supported; consumer migrations and live-provider usefulness are separate
+proofs. The [surface inventory](#current-surface) and dated entries below link
+their historical evidence; this documentation setup does not rerun those proofs.
+
+Material limits: attached sessions cannot claim reset/replay; consumer rules and
+independent checks stay in adapters; public CI has no browser gate. Diagnostic
+context comparisons ([#23](https://github.com/FieldmouseWorks/redshirt/pull/23),
+[#25](https://github.com/FieldmouseWorks/redshirt/pull/25)) and a coverage report
+([#27](https://github.com/FieldmouseWorks/redshirt/pull/27)) are open PRs, outside
+this main baseline. [#19](https://github.com/FieldmouseWorks/redshirt/issues/19)
+tracks subprocess reaping warnings;
+[#26](https://github.com/FieldmouseWorks/redshirt/issues/26) tracks a live Choice
+contract disagreement. Neither is resolved by this setup.
+
+The standing [project workflow](WORKFLOW.md) is established through
+[#28](https://github.com/FieldmouseWorks/redshirt/issues/28). That issue owns the
+setup graph, authority decision, exact documentation revisions, check receipts and
+single next action. While it remains open, finish its next unsatisfied setup gate;
+after verified closure there is no active assigned feature outcome. Select the
+next bounded consumer need with acceptance and authority before continuing. The
+other open issues remain unselected work.
+
 ## 2026-09-21 — host-configured wider action menus
 
 [Issue #20](https://github.com/FieldmouseWorks/redshirt/issues/20), runtime/tests
