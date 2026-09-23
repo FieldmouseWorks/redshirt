@@ -1,6 +1,7 @@
 """Local protocol contracts, with synthetic data and no external service."""
 import asyncio
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -146,6 +147,25 @@ class InteractionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report['stop'], 'cancelled')
         self.assertTrue(report['cleanup'])
         self.assertIsNotNone(client.process.returncode)
+
+    async def test_completed_client_close_preserves_natural_exit_status(self):
+        folder = self.output()
+        client = await InteractionClient.start(sys.executable,
+            str(Path(__file__).with_name('interactive_fixture.py')),
+            str(folder), 'terminal-exit-seven')
+        try:
+            done = await client.act('stop')
+            self.assertEqual(done['stop'], 'selector_stop')
+            self.assertTrue(done['verified'] and done['cleanup'])
+            await client.close()
+            self.assertEqual(client.process.returncode, 7)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(client.process.pid, 0)
+            report = json.loads((folder / 'report.json').read_text())
+            self.assertEqual(report['stop'], 'selector_stop')
+            self.assertTrue(report['cleanup'])
+        finally:
+            await client.close()
 
 
 if __name__ == '__main__':

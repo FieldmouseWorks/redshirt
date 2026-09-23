@@ -6,38 +6,56 @@ ongoing updates; implementation issues and PRs own their exact acceptance checks
 
 ## Current state
 
-The merged runtime baseline recorded on 2026-09-23 is
-`08211d1aabd8ab8cf53c1927dbe4a8fc25eb2527`
-([PR #21](https://github.com/FieldmouseWorks/redshirt/pull/21)).
-The Rust controller, external JSON sessions, bounded comparison runner, optional
-native provider and host-configured menus are merged. Existing Python callers
-remain supported; consumer migrations and live-provider usefulness are separate
-proofs. The [surface inventory](#current-surface) and dated entries below link
-historical evidence; this documentation setup does not rerun those proofs. The
-selected PR batch began from main at `f7338da856187cbeadd81a91f46a035276c96cf8`,
-as recorded in [its canonical issue #30](https://github.com/FieldmouseWorks/redshirt/issues/30);
-that initial batch revision is distinct from the runtime baseline above.
+The completed [integration batch #30](https://github.com/FieldmouseWorks/redshirt/issues/30)
+verified main `1f544d440d17d6c5c78a7947dbdaf7e087d972db` on 2026-09-23.
+The Rust controller, external JSON sessions, bounded comparisons, optional native
+provider, host-configured menus and diagnostic context comparisons are merged.
+Python callers remain supported. The [surface inventory](#current-surface) and
+dated entries link historical consumer evidence; merged runtime support does not
+establish model usefulness or complete consumer migrations.
 
 Material limits: attached sessions cannot claim reset/replay; consumer rules and
-independent checks stay in adapters; public CI has no browser gate. Diagnostic
-context candidates ([#23](https://github.com/FieldmouseWorks/redshirt/pull/23),
-[#25](https://github.com/FieldmouseWorks/redshirt/pull/25)) and the coverage
-report ([#27](https://github.com/FieldmouseWorks/redshirt/pull/27)) link their
-implementation and report. Issue #30 owns the exact reviewed, merged or blocked
-states and current next action for this batch.
-[#19](https://github.com/FieldmouseWorks/redshirt/issues/19)
-continues to track subprocess reaping warnings;
-[#26](https://github.com/FieldmouseWorks/redshirt/issues/26) tracks the unresolved
-live Choice contract disagreement. This batch does not resolve either issue.
+independent checks stay in adapters; public CI has no browser gate.
+[#26](https://github.com/FieldmouseWorks/redshirt/issues/26) remains the separate
+live Choice contract disagreement. Prior live allowances remain closed.
 
-The standing [project workflow](WORKFLOW.md), including the owner's [merge and
-cleanup authority](WORKFLOW.md#authority-and-effort) within authorized Redshirt
-outcomes, was established by the completed setup in
-[issue #28](https://github.com/FieldmouseWorks/redshirt/issues/28)
-and [PR #29](https://github.com/FieldmouseWorks/redshirt/pull/29). Issue #28 is
-closed. The selected batch in [issue #30](https://github.com/FieldmouseWorks/redshirt/issues/30)
-remains the current assigned outcome; continue through its next gate while it is
-open. After that issue closes, no feature is selected unless one is assigned.
+The [standing workflow](WORKFLOW.md) was established in completed
+[#28](https://github.com/FieldmouseWorks/redshirt/issues/28) and
+[#29](https://github.com/FieldmouseWorks/redshirt/pull/29), including
+[merge and cleanup authority](WORKFLOW.md#authority-and-effort).
+The next selected outcome after batch #30 is
+[#19](https://github.com/FieldmouseWorks/redshirt/issues/19): identify and resolve
+the demonstrated completed-session reaping warning while preserving actual exit
+status and cancellation. That issue owns the graph, exact revisions, checks and
+next gate. Follow its remaining gates while open; after closure, no further
+feature is selected unless assigned.
+
+## 2026-09-23 — preserve process status after a completed session
+
+[Issue #19](https://github.com/FieldmouseWorks/redshirt/issues/19) isolates a
+completed-session shutdown race in the Python client. A valid terminal `done`
+frame now leads to bounded natural process exit; unfinished sessions keep their
+existing SIGINT cancellation and timeout escalation. The wire contract, Rust
+controller and adapter cleanup ownership remain intact. See the
+[client lifecycle](INTERACTION.md#async-client).
+
+At baseline `1f544d440d17d6c5c78a7947dbdaf7e087d972db`, Python 3.14.4 completed
+48 immediate-close and 24 settled-close synthetic Rust sessions without warnings.
+On installed Python 3.12.14, four normal controls exited zero, while all 16
+sessions with a 50 ms synchronous pause after `done` reproduced the exact warning:
+Popen retained the true exit status zero, but asyncio reported 255. Episode final
+checks and adapter cleanup passed in all cases, and no controller or adapter
+process remained. No external reaper or live provider was introduced.
+
+The installed 3.12 asyncio signal path calls Popen's polling signal method;
+that poll can collect an exited child's status before the pidfd watcher. The
+installed 3.14 path uses direct signaling and did not reproduce that route.
+Waiting after `done` leaves status collection with asyncio. The original private
+consumer's interpreter and exact schedule were not recorded, so this establishes
+a matching shared-code failure without claiming its precise historical trigger.
+The issue and PR retain regression negative controls, exact check results,
+independent review and merge evidence. No general process-management rewrite or
+warning suppression is part of this correction.
 
 ## 2026-09-22 — coverage-seeking baseline matches the completed Jev run
 

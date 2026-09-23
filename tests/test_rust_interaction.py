@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import sys
 import tempfile
+import time
 import unittest
 
 from redshirt import Limits, Observation, run
@@ -71,6 +72,31 @@ class RustInteractionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(replay['replay_complete'])
         self.assertEqual(replay['requests'], 0)
         self.assertEqual(len(self.receipts(folder)), 3)
+
+    async def test_completed_sessions_reap_with_exact_exit_status(self):
+        for _ in range(4):
+            client, folder = await self.start()
+            pid = client.process.pid
+            children_path = Path(f'/proc/{pid}/task/{pid}/children')
+            adapter_pids = [int(value) for value in children_path.read_text().split()] if children_path.exists() else []
+            await client.act('increment')
+            done = await client.act('stop')
+            self.assertEqual(done['stop'], 'selector_stop')
+            self.assertTrue(done['verified'] and done['cleanup'])
+            # Give the child time to exit while this loop cannot run its pidfd
+            # callback. Python 3.12 used to reap it during close().
+            time.sleep(.05)
+            with self.assertNoLogs('asyncio', level='WARNING'):
+                await client.close()
+            self.assertEqual(client.process.returncode, 0)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
+            for adapter_pid in adapter_pids:
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(adapter_pid, 0)
+            report = json.loads((folder / 'report.json').read_text())
+            self.assertEqual(report['stop'], 'selector_stop')
+            self.assertTrue(report['cleanup'])
 
     async def test_bad_replies_and_eof_never_execute(self):
         cases = [

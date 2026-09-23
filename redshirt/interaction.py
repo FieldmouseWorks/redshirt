@@ -190,10 +190,11 @@ class InteractionClient:
 
     async def close(self):
         if self.process.returncode is None:
-            try:
-                self.process.send_signal(signal.SIGINT)
-            except ProcessLookupError:
-                pass
+            if self._frame is None or self._frame.get("type") != "done":
+                try:
+                    self.process.send_signal(signal.SIGINT)
+                except ProcessLookupError:
+                    pass
             try:
                 await asyncio.wait_for(self.process.wait(), 30)
             except TimeoutError:

@@ -2,7 +2,7 @@
 
 The Rust executable's `--stdio` mode connects external decision systems to the
 controller through JSON lines on local pipes. The existing Python
-`redshirt.interaction.InteractionClient` is unchanged. A scripted client, an LLM tool handler
+`redshirt.interaction.InteractionClient` preserves this wire contract. A scripted client, an LLM tool handler
 or a decision model sees the same adapter-audited observation and choices. No
 image, network server, model SDK or credential is required by this transport.
 
@@ -88,9 +88,21 @@ async with await InteractionClient.start(*trusted_adapter_argv) as client:
 ```
 
 The client inserts the current token, returns detached observations, rejects
-concurrent actions, and cancels its owned process on close. A failed receive
-invalidates the held frame; it does not retry an uncertain action. The transport
-uses POSIX pipes; Windows support has not been verified.
+concurrent actions, and owns process shutdown. After a valid terminal `done` frame,
+`close()` waits for normal exit instead of sending cancellation, preserving the
+actual process status. An unfinished session still receives SIGINT. Waiting is
+bounded by the existing 30-second timeout, followed by kill and wait if needed.
+The terminal frame describes episode checks; inspect `client.process.returncode`
+after close for the separate process result. A failed receive invalidates the
+held frame; it does not retry an uncertain action. The transport uses POSIX pipes;
+Windows support has not been verified.
+
+Leave status collection to asyncio's process watcher. Consumers must not call a
+second `waitpid`, `Popen.poll` or `Popen.wait` on the same child. [Issue #19](https://github.com/FieldmouseWorks/redshirt/issues/19)
+reproduces an older asyncio signal path that could reap an already-completed
+child before the watcher, yielding an unknown-status warning and synthetic 255.
+Graceful waiting after `done` avoids that demonstrated path. This does not claim
+to repair unrelated interpreter startup, forced-kill or external-reaper races.
 
 Roles, actor assignment and which facts/actions each role may access belong to
 the project adapter. Role assignment must happen at its trusted host boundary,
