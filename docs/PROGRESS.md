@@ -12,6 +12,11 @@ Python callers remain supported. The [surface inventory](#current-surface) and
 dated entries link historical consumer evidence; merged runtime support does not
 establish model usefulness or complete consumer migrations.
 
+The source-backed [evidence packet contract](EVIDENCE-PACKETS.md) and example
+spec are tracked under [issue #40](https://github.com/FieldmouseWorks/redshirt/issues/40).
+The spec preserves caller-selected source and instructions; it does not establish
+corpus completeness or model quality.
+
 The bounded [direct API selector slice](CHOICE.md) is tracked in
 [#38](https://github.com/FieldmouseWorks/redshirt/issues/38). Its optional fixed
 Luna/DeepSeek profiles share the existing controller, candidate validation,
@@ -61,6 +66,29 @@ wrong model, usage consistency/overflow, cancellation, bounds, initial mismatch,
 credential exclusion, existing-output preservation and real-pipe replay. The
 owning issue/PR records final default/all-feature, Python, HTTPX, real-pipe and
 hosted gates. This shared change makes no live provider or consumer quality claim.
+
+## 2026-09-23 — source-backed evidence packet contract
+
+[Issue #40](https://github.com/FieldmouseWorks/redshirt/issues/40) adds a local
+packet format that binds caller-selected source paths and inclusive line ranges
+to an exact Git revision, retaining whole-file and excerpt hashes plus the
+original text. `build` reads committed blobs and reports `not_checked`; `verify`
+checks matching `HEAD` and current referenced file bytes and reports `current`.
+It checks `HEAD` before and after reading each referenced file sequentially, so
+verification is not atomic across files and cannot lock the tree against later
+changes.
+
+The [example spec](../examples/packets/terminal-replay.json) pins the terminal
+replay task to baseline `5b07a87d9ebeda7fead8d3384cfc22417d10c17b`, includes the
+entire `AGENTS.md` as required material, and carries the complete controller,
+contract, and controller-test files as source chunks. It stores references rather
+than duplicate source text. The caller still owns source completeness and
+correctness criteria. Packet projection does not change context-comparison v3 or
+historical replay, and this slice makes no model-quality claim or live call.
+
+Next: measure a deterministic task-specific retrieval baseline; then, if useful,
+shadow Jev ranking under a separate bounded allowance and judge task outcomes with
+consumer-owned checks. No dispatcher or hidden-context hook is introduced.
 
 ## 2026-09-23 — model-capacity context admission
 
