@@ -139,7 +139,12 @@ impl jev::Transport for Probe {
                     .enumerate()
                     .map(|(index, name)| (index.to_string(), name))
                     .collect();
-                let probabilities = BTreeMap::from([(format!("{score:.0}"), 1.0)]);
+                let level = if score == 0.0 {
+                    "0".into()
+                } else {
+                    format!("{score:.0}")
+                };
+                let probabilities = BTreeMap::from([(level, 1.0)]);
                 (
                     id,
                     json!({"type":"score","score":score,"legend":legend,
@@ -305,6 +310,74 @@ async fn injected_scores_rank_descending_and_ties_follow_bm25() {
     assert_eq!(request["state"]["evidence"].as_array().unwrap().len(), 2);
     assert!(request.get("oracle").is_none());
     assert_eq!(shadow::replay(&output).unwrap()["complete"], true);
+}
+
+#[tokio::test]
+async fn signed_zero_scores_tie_follow_bm25_and_replay() {
+    let (repo, manifest) = fixture();
+    let plan = shadow::preflight(&manifest, repo.path()).unwrap();
+    let baseline = plan["cases"][0]["bm25_ranking"].as_array().unwrap();
+    assert_eq!(baseline[0]["id"], "alpha");
+    assert_eq!(baseline[1]["id"], "beta");
+    let baseline_ids: Vec<_> = baseline.iter().map(|row| row["id"].clone()).collect();
+    let (transport, seen) = probe(Behavior::Ok, &[("alpha", -0.0), ("beta", 0.0)]);
+    let provider = jev::Jev::new(transport, manifest.provider_config()).unwrap();
+    let output = repo.path().join("signed-zero");
+    let report = shadow::campaign(
+        manifest,
+        repo.path(),
+        provider,
+        &output,
+        false,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["complete"], true);
+    let ranked = report["analysis"]["cases"][0]["jev_ranking"]
+        .as_array()
+        .unwrap();
+    assert_eq!(
+        ranked
+            .iter()
+            .map(|row| row["id"].clone())
+            .collect::<Vec<_>>(),
+        baseline_ids
+    );
+    assert_eq!(ranked[0]["rank"], 1);
+    assert_eq!(ranked[1]["rank"], 2);
+    assert_eq!(
+        ranked[0]["score"].as_f64().unwrap().to_bits(),
+        (-0.0f64).to_bits()
+    );
+    assert_eq!(
+        ranked[1]["score"].as_f64().unwrap().to_bits(),
+        0.0f64.to_bits()
+    );
+
+    let calls = fs::read_to_string(output.join("calls.jsonl")).unwrap();
+    let call: Value = serde_json::from_str(calls.lines().next().unwrap()).unwrap();
+    let response = decode(call["receipt"]["response"].as_str().unwrap().as_bytes()).unwrap();
+    for id in ["alpha", "beta"] {
+        assert_eq!(response["answers"][id]["probabilities"], json!({"0": 1.0}));
+    }
+
+    let replayed = shadow::replay(&output).unwrap();
+    assert_eq!(replayed["verified"], true);
+    assert_eq!(replayed["provider_calls"], 0);
+    let replay_ranking = replayed["analysis"]["cases"][0]["jev_ranking"]
+        .as_array()
+        .unwrap();
+    assert_eq!(
+        replay_ranking[0]["score"].as_f64().unwrap().to_bits(),
+        (-0.0f64).to_bits()
+    );
+    assert_eq!(
+        replay_ranking[1]["score"].as_f64().unwrap().to_bits(),
+        0.0f64.to_bits()
+    );
+    assert_eq!(replay_ranking, ranked);
+    assert_eq!(seen.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]

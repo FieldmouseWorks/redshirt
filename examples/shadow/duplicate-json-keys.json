@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "source_revision": "64d6348ddce3bfb10031155fe5de3957d09d38d2",
+  "task": "Explain how the Rust JSON evidence path treats repeated object member names, including repeats with equal values and repeats below the top level. Distinguish parsing raw JSON from canonicalizing a value that has already been parsed. Include regression controls for both duplicate rejection and ordinary canonical output.",
+  "required": [
+    {
+      "id": "instructions",
+      "path": "AGENTS.md",
+      "start_line": 1,
+      "end_line": 90
+    }
+  ],
+  "chunks": [
+    {
+      "id": "c01",
+      "path": "src/evidence.rs",
+      "start_line": 64,
+      "end_line": 86
+    },
+    {
+      "id": "c02",
+      "path": "src/evidence.rs",
+      "start_line": 93,
+      "end_line": 101
+    },
+    {
+      "id": "c03",
+      "path": "src/evidence.rs",
+      "start_line": 103,
+      "end_line": 164
+    },
+    {
+      "id": "c04",
+      "path": "tests/rust_controller.rs",
+      "start_line": 456,
+      "end_line": 482
+    },
+    {
+      "id": "c05",
+      "path": "tests/packet.rs",
+      "start_line": 196,
+      "end_line": 246
+    },
+    {
+      "id": "c06",
+      "path": "tests/json_numbers.rs",
+      "start_line": 5,
+      "end_line": 73
+    },
+    {
+      "id": "c07",
+      "path": "src/context/packet.rs",
+      "start_line": 132,
+      "end_line": 166
+    }
+  ]
+}

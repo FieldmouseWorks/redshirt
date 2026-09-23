@@ -330,7 +330,13 @@ fn jev_ranking(prepared: &PreparedCase, answers: &Answers) -> Result<Vec<Rank>> 
         scored.push((row.id.clone(), *score));
     }
     // A stable sort preserves the full BM25 order when Jev scores tie.
-    scored.sort_by(|a, b| b.1.total_cmp(&a.1));
+    scored.sort_by(|a, b| {
+        if a.1 == b.1 {
+            std::cmp::Ordering::Equal
+        } else {
+            b.1.total_cmp(&a.1)
+        }
+    });
     Ok(ranking(scored))
 }
 

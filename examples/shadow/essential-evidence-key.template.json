@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "manifest_sha256": null,
+  "source_revision": "64d6348ddce3bfb10031155fe5de3957d09d38d2",
+  "review_status": "accepted_independent_source_review",
+  "cases": {
+    "terminal-replay": {
+      "essential": ["c01", "c05", "c08"],
+      "expected_finding": "A terminal observation permits the replay-complete stop only after at least one recorded checked step and when every saved step has been consumed. A terminal observation with saved steps left stops early and is not replay-complete. Successful replay completion additionally requires final verification to pass, identity to remain stable, and cleanup to succeed. Initial terminal state does not use the consumed-step override; the empty nonterminal replay path is separate.",
+      "proof": [
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "rust_controller", "--", "--exact", "terminal_replay_completes_only_after_every_checked_step"],
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "rust_controller", "--", "--exact", "concrete_replay_identity_preconditions_and_manifest"]
+      ],
+      "rationale": {
+        "c01": "src/controller.rs:106-298 contains the complete controller run. The terminal branch checks nonempty records and exact saved-step count; final replay_complete is gated on final.ok, cleanup and identity_stable.",
+        "c05": "tests/rust_controller.rs:12-135 defines the fixture modes used by the regression: terminal observations begin after an applied input, terminal_bad_final fails final evaluation, and close records cleanup.",
+        "c08": "tests/rust_controller.rs:317-421 asserts exact terminal replay, early terminal with remaining steps, initial terminal, final-check failure and cleanup outcomes."
+      }
+    },
+    "packet-provenance": {
+      "essential": ["c02", "c03", "c04", "c05", "c07"],
+      "expected_finding": "Packet structural validation checks that the saved excerpt hash matches its saved text, so a caller can recompute that hash after editing the text. Verification rebuilds from the packet's pinned Git revision, compares the rebuilt packet, and checks the complete current bytes of every referenced file; changing bytes outside the excerpt is stale. Verification also requires HEAD to match the pinned revision.",
+      "proof": [
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "packet", "--", "--exact", "full_file_change_outside_excerpt_and_tamper_both_fail"],
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "packet", "--", "--exact", "history_build_is_readable_but_stale_head_fails_verification"],
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "packet", "--", "--exact", "git_replace_objects_do_not_rewrite_pinned_provenance"]
+      ],
+      "rationale": {
+        "c02": "src/context/packet.rs:169-197 shows Packet::validate checking hash syntax and recomputing sha256 over the stored excerpt. This is internal consistency, not provenance.",
+        "c03": "src/context/packet.rs:441-481 reads a regular text blob by object ID from the pinned Git tree.",
+        "c04": "src/context/packet.rs:493-558 extracts the inclusive range and computes both full-file and excerpt hashes from the committed bytes.",
+        "c05": "src/context/packet.rs:636-658 compares complete working-file bytes and brackets verification with exact HEAD checks.",
+        "c07": "tests/packet.rs:174-194 changes an unselected line and separately edits excerpt text while recomputing its excerpt hash; verification rejects both."
+      }
+    },
+    "duplicate-json-keys": {
+      "essential": ["c01", "c02", "c03", "c04", "c05"],
+      "expected_finding": "Raw JSON parsing rejects a repeated member name at every object depth. The decoder checks whether insertion replaced any existing entry, so equal-value duplicates are rejected too. The duplicate-version test uses identical values. Canonical encoding sorts keys on an already parsed Value and cannot recover duplicates that a permissive parser discarded before encoding.",
+      "proof": [
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "rust_controller", "--", "--exact", "strict_json_and_portable_view_profile"],
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "packet", "--", "--exact", "malformed_input_identity_path_range_and_json_are_rejected"],
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "json_numbers", "--", "--exact", "finite_binary64_matches_independent_python_json_oracle"]
+      ],
+      "rationale": {
+        "c01": "src/evidence.rs:64-85 serializes a serde Value using sorted object keys and canonical number/string formatting.",
+        "c02": "src/evidence.rs:93-101 routes file loading through decode before returning a Value.",
+        "c03": "src/evidence.rs:103-164 is the raw-byte parser; visit_map rejects insertion collisions regardless of value equality and recursively uses the same visitor.",
+        "c04": "tests/rust_controller.rs:456-482 covers top-level and nested duplicate rejection plus ordinary canonical output.",
+        "c05": "tests/packet.rs:196-246 writes duplicate version members with the same value in both spec and packet files and asserts both readers reject them."
+      }
+    },
+    "jev-cancellation": {
+      "essential": ["c03", "c04", "c06", "c07"],
+      "expected_finding": "After input, receipt-state, request-budget, and size checks pass, the request increments the call count and stores an interrupted receipt with the full reservation before awaiting transport. If the caller cancels or drops the enclosing request while transport is awaiting a response, post-await result handling does not run and the provider-owned receipt remains interrupted. A pending receipt blocks another call until evidence is drained; a later call can proceed only if request budget remains, and the regression's one-call budget is exhausted. The provider's own timeout returns through request error handling and updates the receipt as failed. Rejections before request admission do not count as attempts.",
+      "proof": [
+        ["cargo", "+1.98.0", "test", "--locked", "--test", "jev", "--", "--exact", "dropped_selection_retains_reservation_and_cannot_retry_implicitly"]
+      ],
+      "rationale": {
+        "c02": "Supplementary entry-point context: src/jev.rs:208-231 is the public advisory ask path used for scoring questions and delegates one validated batch to request; it is not a core grading anchor.",
+        "c03": "src/jev.rs:233-288 validates the request before incrementing calls, then stores an interrupted receipt and reservation before awaiting transport; errors preserve receipt outcome.",
+        "c04": "src/jev.rs:291-339 enforces a pending receipt guard and implements take_evidence, which drains the receipt and records elapsed time.",
+        "c06": "tests/jev.rs:40-63 supplies the pending transport helper used by the dropped-call control.",
+        "c07": "tests/jev.rs:248-279 starts one pending transport, drops the enclosing selection call, observes the pending-receipt refusal, drains the interrupted receipt, then observes exhausted-budget refusal and a single actual transport request.",
+        "c08": "Supplementary campaign-level control: tests/context.rs:1204-1228 checks cancellation evidence and offline replay. That extra replay behavior is outside the graded expected finding."
+      }
+    }
+  }
+}

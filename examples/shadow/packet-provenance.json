@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "source_revision": "64d6348ddce3bfb10031155fe5de3957d09d38d2",
+  "task": "A source packet contains excerpt text and hashes. Explain what packet verification establishes if a stored excerpt and its hash are changed consistently, and whether changing bytes outside the selected excerpt affects verification. Include the relevant negative controls.",
+  "required": [
+    {
+      "id": "instructions",
+      "path": "AGENTS.md",
+      "start_line": 1,
+      "end_line": 90
+    }
+  ],
+  "chunks": [
+    {
+      "id": "c01",
+      "path": "src/context/packet.rs",
+      "start_line": 58,
+      "end_line": 76
+    },
+    {
+      "id": "c02",
+      "path": "src/context/packet.rs",
+      "start_line": 169,
+      "end_line": 197
+    },
+    {
+      "id": "c03",
+      "path": "src/context/packet.rs",
+      "start_line": 441,
+      "end_line": 481
+    },
+    {
+      "id": "c04",
+      "path": "src/context/packet.rs",
+      "start_line": 493,
+      "end_line": 558
+    },
+    {
+      "id": "c05",
+      "path": "src/context/packet.rs",
+      "start_line": 636,
+      "end_line": 658
+    },
+    {
+      "id": "c06",
+      "path": "tests/packet.rs",
+      "start_line": 15,
+      "end_line": 68
+    },
+    {
+      "id": "c07",
+      "path": "tests/packet.rs",
+      "start_line": 174,
+      "end_line": 194
+    },
+    {
+      "id": "c08",
+      "path": "tests/packet.rs",
+      "start_line": 386,
+      "end_line": 401
+    }
+  ]
+}

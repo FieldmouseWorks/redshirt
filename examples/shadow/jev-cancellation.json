@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "source_revision": "64d6348ddce3bfb10031155fe5de3957d09d38d2",
+  "task": "Trace what happens when a caller cancels or drops an in-flight Jev call while its transport is awaiting a response. Explain attempt accounting, preserved evidence, and when a subsequent request may proceed, using source and the pending-transport regression control. State the boundary for what counts as an attempted call and distinguish this caller action from the provider's own timeout.",
+  "required": [
+    {
+      "id": "instructions",
+      "path": "AGENTS.md",
+      "start_line": 1,
+      "end_line": 90
+    }
+  ],
+  "chunks": [
+    {
+      "id": "c01",
+      "path": "src/jev.rs",
+      "start_line": 54,
+      "end_line": 97
+    },
+    {
+      "id": "c02",
+      "path": "src/jev.rs",
+      "start_line": 208,
+      "end_line": 231
+    },
+    {
+      "id": "c03",
+      "path": "src/jev.rs",
+      "start_line": 233,
+      "end_line": 288
+    },
+    {
+      "id": "c04",
+      "path": "src/jev.rs",
+      "start_line": 291,
+      "end_line": 339
+    },
+    {
+      "id": "c05",
+      "path": "src/contract.rs",
+      "start_line": 132,
+      "end_line": 154
+    },
+    {
+      "id": "c06",
+      "path": "tests/jev.rs",
+      "start_line": 40,
+      "end_line": 63
+    },
+    {
+      "id": "c07",
+      "path": "tests/jev.rs",
+      "start_line": 248,
+      "end_line": 279
+    },
+    {
+      "id": "c08",
+      "path": "tests/context.rs",
+      "start_line": 1204,
+      "end_line": 1228
+    }
+  ]
+}

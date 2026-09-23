@@ -17,6 +17,13 @@ spec are tracked under [issue #40](https://github.com/FieldmouseWorks/redshirt/i
 The spec preserves caller-selected source and instructions; it does not establish
 corpus completeness or model quality.
 
+The [shadow-ranking trial](SHADOW-RANKING.md) is tracked under
+[issue #42](https://github.com/FieldmouseWorks/redshirt/issues/42). It prepares
+four frozen coding investigations, preserves every supplied excerpt, and records
+BM25 and optional Jev relevance rankings. The issue records review, exact
+candidate checks and whether live observations exist; runtime support alone
+does not establish ranking or coding quality.
+
 The bounded [direct API selector slice](CHOICE.md) is tracked in
 [#38](https://github.com/FieldmouseWorks/redshirt/issues/38). Its optional fixed
 Luna/DeepSeek profiles share the existing controller, candidate validation,
@@ -43,6 +50,23 @@ now has a follow-up selected by the owner:
 [model-capacity context admission #36](https://github.com/FieldmouseWorks/redshirt/issues/36).
 Its canonical graph records the candidate, review, gates, merge and owned cleanup;
 follow its next action while open. No subsequent outcome is assigned by this page.
+
+## 2026-09-23 — source-backed shadow ranking
+
+[Issue #42](https://github.com/FieldmouseWorks/redshirt/issues/42) adds a
+scoring-only runner for verified source packets. Admission checks every packet,
+the existing estimated model-capacity limits and a manifest-bound allowance
+before dispatch. At most one relevance batch runs per case; a failure stops the
+remaining prefix. Original packets, both complete rankings, request receipts,
+usage and reservations remain available for offline replay.
+
+The four curated source investigations cover terminal replay, packet provenance,
+strict JSON decoding and provider cancellation. A separately reviewed evaluator
+key stays outside all requests. Its declared core anchors support a bounded
+ranking comparison, not proof of uniquely necessary evidence or agent reliance.
+The [preparation guide](SHADOW-RANKING.md) documents model-free preparation,
+mock collection, replay and the separate bounded live command. The trial does
+not run a coding agent, select a context cutoff or establish coding improvement.
 
 ## 2026-09-23 — fixed direct API candidate selectors
 
@@ -86,9 +110,9 @@ than duplicate source text. The caller still owns source completeness and
 correctness criteria. Packet projection does not change context-comparison v3 or
 historical replay, and this slice makes no model-quality claim or live call.
 
-Next: measure a deterministic task-specific retrieval baseline; then, if useful,
-shadow Jev ranking under a separate bounded allowance and judge task outcomes with
-consumer-owned checks. No dispatcher or hidden-context hook is introduced.
+The next ranking slice is tracked in
+[issue #42](https://github.com/FieldmouseWorks/redshirt/issues/42), under its own
+bounded allowance. No dispatcher or hidden-context hook is introduced.
 
 ## 2026-09-23 — model-capacity context admission
 
