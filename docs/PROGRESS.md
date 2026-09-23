@@ -4,6 +4,41 @@ This page records demonstrated behavior, its limits and the next bounded slice.
 The [progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1) links
 ongoing updates; implementation issues and PRs own their exact acceptance checks.
 
+## Current state
+
+The merged runtime baseline recorded on 2026-09-23 is
+`08211d1aabd8ab8cf53c1927dbe4a8fc25eb2527`
+([PR #21](https://github.com/FieldmouseWorks/redshirt/pull/21)).
+The Rust controller, external JSON sessions, bounded comparison runner, optional
+native provider and host-configured menus are merged. Existing Python callers
+remain supported; consumer migrations and live-provider usefulness are separate
+proofs. The [surface inventory](#current-surface) and dated entries below link
+historical evidence; this documentation setup does not rerun those proofs. The
+selected PR batch began from main at `f7338da856187cbeadd81a91f46a035276c96cf8`,
+as recorded in [its canonical issue #30](https://github.com/FieldmouseWorks/redshirt/issues/30);
+that initial batch revision is distinct from the runtime baseline above.
+
+Material limits: attached sessions cannot claim reset/replay; consumer rules and
+independent checks stay in adapters; public CI has no browser gate. Diagnostic
+context candidates ([#23](https://github.com/FieldmouseWorks/redshirt/pull/23),
+[#25](https://github.com/FieldmouseWorks/redshirt/pull/25)) and the coverage
+report ([#27](https://github.com/FieldmouseWorks/redshirt/pull/27)) link their
+implementation and report. Issue #30 owns the exact reviewed, merged or blocked
+states and current next action for this batch.
+[#19](https://github.com/FieldmouseWorks/redshirt/issues/19)
+continues to track subprocess reaping warnings;
+[#26](https://github.com/FieldmouseWorks/redshirt/issues/26) tracks the unresolved
+live Choice contract disagreement. This batch does not resolve either issue.
+
+The standing [project workflow](WORKFLOW.md), including the owner's [merge and
+cleanup authority](WORKFLOW.md#authority-and-effort) within authorized Redshirt
+outcomes, was established by the completed setup in
+[issue #28](https://github.com/FieldmouseWorks/redshirt/issues/28)
+and [PR #29](https://github.com/FieldmouseWorks/redshirt/pull/29). Issue #28 is
+closed. The selected batch in [issue #30](https://github.com/FieldmouseWorks/redshirt/issues/30)
+remains the current assigned outcome; continue through its next gate while it is
+open. After that issue closes, no feature is selected unless one is assigned.
+
 ## 2026-09-22 — coverage-seeking baseline matches the completed Jev run
 
 [Conary #1061](https://github.com/FieldmouseWorks/Conary/issues/1061) and
