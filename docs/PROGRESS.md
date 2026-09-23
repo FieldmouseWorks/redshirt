@@ -12,6 +12,12 @@ Python callers remain supported. The [surface inventory](#current-surface) and
 dated entries link historical consumer evidence; merged runtime support does not
 establish model usefulness or complete consumer migrations.
 
+The bounded [direct API selector slice](CHOICE.md) is tracked in
+[#38](https://github.com/FieldmouseWorks/redshirt/issues/38). Its optional fixed
+Luna/DeepSeek profiles share the existing controller, candidate validation,
+receipt and replay boundaries. The issue records exact candidate checks and
+integration state; synthetic support does not establish live model quality.
+
 Recent completed repairs include
 [completed-session process status #19](https://github.com/FieldmouseWorks/redshirt/issues/19)
 and [terminal replay #31](https://github.com/FieldmouseWorks/redshirt/issues/31).
@@ -32,6 +38,29 @@ now has a follow-up selected by the owner:
 [model-capacity context admission #36](https://github.com/FieldmouseWorks/redshirt/issues/36).
 Its canonical graph records the candidate, review, gates, merge and owned cleanup;
 follow its next action while open. No subsequent outcome is assigned by this page.
+
+## 2026-09-23 — fixed direct API candidate selectors
+
+The consumer-required [#38](https://github.com/FieldmouseWorks/redshirt/issues/38)
+adds `choice-http`, `--choice CONFIG` and an initial-request digest gate for
+native Jev, direct JSON selectors and remote baselines. The fixed efficiency
+profiles request `gpt-6-luna` without reasoning and `deepseek-flash` with thinking
+disabled. Returned IDs must match the requested model and offered candidate.
+There is no alias fallback, retry, proxy, tool use or application rule here.
+
+Per-call reservations precede dispatch; bounded sanitized receipts preserve
+invalid/interrupted calls and valid usage even when the choice is rejected.
+Separate `selection.json` timings cover completed and cancelled selection
+futures. The CLI removes all three provider credentials from adapter children
+and leaves refused existing output directories unchanged. Replay remains
+model-free. The [provider contract](CHOICE.md) documents exact limits, pricing
+assumptions, unknown billing and the additional timing-file archive requirement.
+
+Focused synthetic checks cover both wire profiles, malformed/unknown choices,
+wrong model, usage consistency/overflow, cancellation, bounds, initial mismatch,
+credential exclusion, existing-output preservation and real-pipe replay. The
+owning issue/PR records final default/all-feature, Python, HTTPX, real-pipe and
+hosted gates. This shared change makes no live provider or consumer quality claim.
 
 ## 2026-09-23 — model-capacity context admission
 

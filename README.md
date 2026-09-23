@@ -59,6 +59,11 @@ confidence abstention. Native HTTPS is opt-in through the `jev-http` feature and
 `--jev CONFIG`; injected transports and model-free selectors work without network
 access or credentials. The Python provider remains a transition baseline.
 
+Optional [fixed JSON selectors](docs/CHOICE.md) add direct Luna/DeepSeek
+candidate selection with `choice-http` and `--choice CONFIG`. They retain the
+existing controller, bounded receipts, five-second deadline and model-free
+replay. Live access and consumer quality are separate from synthetic support.
+
 Trusted hosts can explicitly configure [wider bounded action menus](docs/RUST-ADAPTER.md#host-configured-menu-bounds)
 while existing menu defaults remain unchanged. Synthetic proofs cover complete
 schemas, injected providers and cross-runtime replay without model calls.

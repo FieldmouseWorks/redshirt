@@ -1,9 +1,10 @@
 use redshirt::{
-    evidence::{decode, load},
+    comparison::MatchedProvider,
+    evidence::{decode, encoded, load},
     process::ProcessAdapter,
     *,
 };
-use std::path::PathBuf;
+use std::{fs::OpenOptions, io::Write, path::PathBuf};
 
 async fn main_result() -> Result<bool> {
     let mut args = std::env::args().skip(1);
@@ -12,6 +13,8 @@ async fn main_result() -> Result<bool> {
     let mut stdio = false;
     let mut limits_json = None;
     let mut jev_config = None;
+    let mut choice_config = None;
+    let mut expected_initial = None;
     let mut argv = vec![];
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -29,6 +32,14 @@ async fn main_result() -> Result<bool> {
                     args.next().ok_or_else(|| Stop::from("invalid_arguments"))?,
                 ))
             }
+            "--choice" => {
+                choice_config = Some(PathBuf::from(
+                    args.next().ok_or_else(|| Stop::from("invalid_arguments"))?,
+                ))
+            }
+            "--expected-initial" => {
+                expected_initial = Some(args.next().ok_or_else(|| Stop::from("invalid_arguments"))?)
+            }
             "--adapter" => {
                 argv = args.collect();
                 break;
@@ -42,10 +53,24 @@ async fn main_result() -> Result<bool> {
             + usize::from(remote)
             + usize::from(stdio)
             + usize::from(jev_config.is_some())
+            + usize::from(choice_config.is_some())
             == 1,
         "choose_one_mode",
     )?;
     let output = output.ok_or_else(|| Stop::from("output_required"))?;
+    require(
+        expected_initial.as_ref().is_none_or(|digest: &String| {
+            digest.len() == 64
+                && digest
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        }),
+        "invalid_expected_initial",
+    )?;
+    require(
+        expected_initial.is_none() || remote || jev_config.is_some() || choice_config.is_some(),
+        "expected_initial_requires_provider",
+    )?;
     require(
         !(limits_path.is_some() && limits_json.is_some()),
         "choose_one_limits_source",
@@ -61,6 +86,11 @@ async fn main_result() -> Result<bool> {
     limits.validate()?;
     let mut jev_provider: Option<Box<dyn Provider>> = if let Some(path) = jev_config {
         Some(configure_jev(&path)?)
+    } else {
+        None
+    };
+    let mut choice_provider: Option<Box<dyn Provider>> = if let Some(path) = choice_config {
+        Some(configure_choice(&path, &limits)?)
     } else {
         None
     };
@@ -88,11 +118,23 @@ async fn main_result() -> Result<bool> {
             signal_cancel.cancel();
         }
     });
-    let (mut adapter, mut provider) = ProcessAdapter::spawn(&argv)?;
-    let selector: Option<&mut dyn Provider> = if remote {
-        Some(&mut provider)
-    } else if let Some(provider) = jev_provider.as_mut() {
-        Some(provider.as_mut())
+    let (mut adapter, provider) = ProcessAdapter::spawn_without_env(
+        &argv,
+        &["TYPESAFE_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"],
+    )?;
+    let mut matched = if remote {
+        Some(MatchedProvider::new(
+            Box::new(provider),
+            expected_initial.clone(),
+        ))
+    } else {
+        jev_provider
+            .take()
+            .or_else(|| choice_provider.take())
+            .map(|provider| MatchedProvider::new(provider, expected_initial.clone()))
+    };
+    let selector: Option<&mut dyn Provider> = if let Some(provider) = matched.as_mut() {
+        Some(provider)
     } else if let Some(provider) = interactive.as_mut() {
         Some(provider)
     } else {
@@ -102,6 +144,9 @@ async fn main_result() -> Result<bool> {
     adapter.terminate().await;
     signal.abort();
     let report = result?;
+    if let Some(provider) = matched.as_ref() {
+        write_selection(&output, provider)?;
+    }
     if let Some(provider) = interactive.as_mut() {
         // Evidence and adapter cleanup are already complete. A vanished or
         // non-reading client must not keep this process alive indefinitely.
@@ -119,6 +164,42 @@ async fn main_result() -> Result<bool> {
             && report["final"]["ok"] == true
             && report["cleanup"] == true,
     )
+}
+
+fn write_selection(output: &std::path::Path, provider: &MatchedProvider) -> Result<()> {
+    let data = encoded(&serde_json::json!({"version":1,"provider":provider.name(),
+        "expected_initial_sha256":provider.expected_first,
+        "first_request_sha256":provider.first,"elapsed_ms":provider.elapsed_ms}))?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(output.join("selection.json"))
+        .map_err(|_| Stop::from("evidence_io"))?;
+    file.write_all(&data)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| Stop::from("evidence_io"))
+}
+
+#[cfg(feature = "choice-http")]
+fn configure_choice(path: &std::path::Path, limits: &Limits) -> Result<Box<dyn Provider>> {
+    let config: choice::Config = serde_json::from_value(load(path, 4096)?)
+        .map_err(|_| Stop::from("invalid_provider_config"))?;
+    config.validate()?;
+    require(
+        config.request_limit <= limits.requests,
+        "provider_request_budget",
+    )?;
+    let key_name = match config.profile {
+        choice::Profile::OpenaiLuna => "OPENAI_API_KEY",
+        choice::Profile::DeepseekFlash => "DEEPSEEK_API_KEY",
+    };
+    let key = std::env::var(key_name).map_err(|_| Stop::from("missing_or_invalid_key"))?;
+    Ok(Box::new(choice::Choice::live(key, config)?))
+}
+
+#[cfg(not(feature = "choice-http"))]
+fn configure_choice(_: &std::path::Path, _: &Limits) -> Result<Box<dyn Provider>> {
+    Err("choice_http_feature_required".into())
 }
 
 #[cfg(feature = "jev-http")]
