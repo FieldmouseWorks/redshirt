@@ -72,6 +72,8 @@ impl Adapter for Fixture {
                 ready: self.mode != "busy",
                 terminal: if self.mode == "death" {
                     Some("death".into())
+                } else if self.mode.starts_with("terminal") && s.actual >= 1 {
+                    Some("complete".into())
                 } else {
                     None
                 },
@@ -106,7 +108,7 @@ impl Adapter for Fixture {
             s.finalized = true;
         }
         Ok(Verdict {
-            ok: s.actual == s.expected,
+            ok: s.actual == s.expected && !(phase == "final" && self.mode == "terminal_bad_final"),
             progress: phase == "after" && self.mode != "stationary",
             checks: json!({"actual":s.actual,"expected":s.expected}),
         })
@@ -297,6 +299,112 @@ async fn concrete_replay_identity_preconditions_and_manifest() {
         assert_eq!(result["replay_complete"], false);
     }
 }
+#[tokio::test]
+async fn terminal_replay_completes_only_after_every_checked_step() {
+    let dir = tempfile::tempdir().unwrap();
+    let cancel = CancellationToken::new();
+    let output = dir.path().join("first");
+    let mut script = Scripted(vec!["increment".into()].into());
+    let first = run(
+        &mut Fixture::new("terminal"),
+        Some(&mut script),
+        None,
+        &output,
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(first["stop"], "complete");
+    let saved = load(&output.join("replay.json"), 65536).unwrap();
+    let replay = run(
+        &mut Fixture::new("terminal"),
+        None,
+        Some(saved.clone()),
+        &dir.path().join("replay"),
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(replay["replay_complete"], true);
+    assert_eq!(replay["requests"], 0);
+    assert_eq!(replay["evaluations"], first["evaluations"]);
+    assert_eq!(replay["cleanup"], true);
+
+    let bad_final = run(
+        &mut Fixture::new("terminal_bad_final"),
+        None,
+        Some(saved),
+        &dir.path().join("bad-final"),
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(bad_final["replay_complete"], false);
+    assert_eq!(bad_final["final"]["ok"], false);
+    assert_eq!(bad_final["cleanup"], true);
+
+    let longer = dir.path().join("longer");
+    let mut script = Scripted(vec!["increment".into(), "increment".into(), "stop".into()].into());
+    run(
+        &mut Fixture::new("normal"),
+        Some(&mut script),
+        None,
+        &longer,
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    let saved = load(&longer.join("replay.json"), 65536).unwrap();
+    let early = run(
+        &mut Fixture::new("terminal"),
+        None,
+        Some(saved),
+        &dir.path().join("early"),
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(early["stop"], "complete");
+    assert_eq!(early["replay_complete"], false);
+    assert_eq!(early["attempted_inputs"], 1);
+    assert_eq!(early["requests"], 0);
+    assert_eq!(early["cleanup"], true);
+
+    let empty = dir.path().join("empty");
+    let mut script = Scripted(vec!["stop".into()].into());
+    run(
+        &mut Fixture::new("normal"),
+        Some(&mut script),
+        None,
+        &empty,
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    let saved = load(&empty.join("replay.json"), 65536).unwrap();
+    let initial_terminal = run(
+        &mut Fixture::new("death"),
+        None,
+        Some(saved),
+        &dir.path().join("initial-terminal"),
+        Limits::default(),
+        &cancel,
+    )
+    .await
+    .unwrap();
+    assert_eq!(initial_terminal["stop"], "death");
+    assert_eq!(initial_terminal["replay_complete"], false);
+    assert_eq!(initial_terminal["attempted_inputs"], 0);
+    assert_eq!(initial_terminal["requests"], 0);
+    assert_eq!(initial_terminal["cleanup"], true);
+}
+
 #[tokio::test]
 async fn attached_session_never_grants_reset() {
     let dir = tempfile::tempdir().unwrap();

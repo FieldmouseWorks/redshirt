@@ -23,12 +23,31 @@ The [standing workflow](WORKFLOW.md) was established in completed
 [#28](https://github.com/FieldmouseWorks/redshirt/issues/28) and
 [#29](https://github.com/FieldmouseWorks/redshirt/pull/29), including
 [merge and cleanup authority](WORKFLOW.md#authority-and-effort).
-The next selected outcome after batch #30 is
-[#19](https://github.com/FieldmouseWorks/redshirt/issues/19): identify and resolve
-the demonstrated completed-session reaping warning while preserving actual exit
-status and cancellation. That issue owns the graph, exact revisions, checks and
-next gate. Follow its remaining gates while open; after closure, no further
-feature is selected unless assigned.
+The completed subprocess repair is recorded in
+[#19](https://github.com/FieldmouseWorks/redshirt/issues/19) and
+[#32](https://github.com/FieldmouseWorks/redshirt/pull/32). The subsequent
+consumer-driven terminal-replay repair is owned by
+[#31](https://github.com/FieldmouseWorks/redshirt/issues/31); its issue/PR records
+review, gate and integration state. After it closes, no further feature is
+selected by this record.
+
+## 2026-09-23 — concrete replay at a terminal observation
+
+A consumer preflight found that a last checked operation could reach terminal
+state and replay exactly, yet both controllers reported replay incomplete.
+The terminal refusal preceded the exhausted-step check. The shared repair
+recognizes consumed replay steps after observation/environment validation and
+before terminal refusal; a terminal with remaining steps still stops normally.
+Provider runs retain their actual terminal reason. Final verification, stable
+identity, cleanup, per-step verdict equality and resource bounds remain required.
+
+Generic counter regressions failed on the old ordering in both Rust and Python.
+They now cover completed terminal replay, premature terminal refusal and failed
+final verification. Focused Rust controller checks (11 tests) and Python checks
+with HTTPX and real pipes (62 tests) pass locally. Full candidate and hosted
+gate receipts, review and exact-main verification belong to
+[issue #31](https://github.com/FieldmouseWorks/redshirt/issues/31) and its PR.
+No live provider call, private consumer asset or game rule is part of this fix.
 
 ## 2026-09-23 — preserve process status after a completed session
 
