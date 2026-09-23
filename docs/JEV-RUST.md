@@ -93,6 +93,14 @@ or invalid UTF-8 is bounded again; redaction and truncation are explicitly flagg
 
 ## Verification and limits
 
+`Jev::ask(state, questions)` exposes advisory typed batches without an implicit
+action question. It requires empty configured auxiliary questions and no action
+confidence floor, accepts one to eight validated questions, and shares the same
+transport, call limits, response validation and drain-before-next-call receipts.
+Caller code retains all authority. The [context comparison](CONTEXT-COMPARISON.md)
+uses this interface for relevance scores and diagnostic choices. Native HTTPS
+honors the validated host `request_bytes` limit; the response cap stays 16 KiB.
+
 The existing Rust fixture compares scripted and three-question batched runs:
 identical operations and independent checks, then concrete replay with zero
 provider calls. Tests cover all question types, complete menus, malformed auxiliary
@@ -106,7 +114,7 @@ cargo clippy --locked --all-features --all-targets -- -D warnings
 cargo test --locked --all-features
 ```
 
-Protocol sources inspected September 20, 2026: [API](https://docs.typesafe.ai/api),
+Protocol sources inspected September 22, 2026: [API](https://docs.typesafe.ai/api),
 [primitives](https://docs.typesafe.ai/primitives),
 [confidence](https://docs.typesafe.ai/confidence), and
 [model limits/pricing](https://docs.typesafe.ai/models).
