@@ -127,10 +127,11 @@ async fn main_result() -> Result<bool> {
             Box::new(provider),
             expected_initial.clone(),
         ))
-    } else if let Some(provider) = jev_provider.take().or_else(|| choice_provider.take()) {
-        Some(MatchedProvider::new(provider, expected_initial.clone()))
     } else {
-        None
+        jev_provider
+            .take()
+            .or_else(|| choice_provider.take())
+            .map(|provider| MatchedProvider::new(provider, expected_initial.clone()))
     };
     let selector: Option<&mut dyn Provider> = if let Some(provider) = matched.as_mut() {
         Some(provider)
