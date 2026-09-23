@@ -74,7 +74,7 @@ packet format that binds caller-selected source paths and inclusive line ranges
 to an exact Git revision, retaining whole-file and excerpt hashes plus the
 original text. `build` reads committed blobs and reports `not_checked`; `verify`
 checks matching `HEAD` and current referenced file bytes and reports `current`.
-It checks `HEAD` before and after reading each referenced file sequentially, so
+It checks `HEAD` before and after the sequence of file reads, so
 verification is not atomic across files and cannot lock the tree against later
 changes.
 

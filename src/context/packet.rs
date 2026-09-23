@@ -408,12 +408,9 @@ fn run_git_command(
 fn stop_git(child: &mut std::process::Child) {
     #[cfg(unix)]
     {
-        unsafe extern "C" {
-            fn kill(pid: i32, signal: i32) -> i32;
-        }
         // Git has its own process group, so helpers cannot keep our pipes open.
         unsafe {
-            kill(-(child.id() as i32), 9);
+            libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
         }
     }
     let _ = child.kill();
@@ -577,28 +574,26 @@ fn head(root: &Path) -> Result<String> {
 #[cfg(target_os = "linux")]
 fn open_working_file(root: &Path, path: &str) -> Result<File> {
     use std::{
-        ffi::{CString, c_char},
+        ffi::CString,
         os::fd::{AsRawFd, FromRawFd},
     };
-    unsafe extern "C" {
-        fn openat(directory: i32, path: *const c_char, flags: i32) -> i32;
-    }
-    const O_RDONLY: i32 = 0;
-    const O_CLOEXEC: i32 = 0o2000000;
-    const O_DIRECTORY: i32 = 0o200000;
-    const O_NONBLOCK: i32 = 0o4000;
-    const O_NOFOLLOW: i32 = 0o400000;
 
     let mut directory = File::open(root).map_err(|_| Stop::from("packet_stale_file"))?;
     let parts: Vec<_> = path.split('/').collect();
     for (index, part) in parts.iter().enumerate() {
         let part = CString::new(*part).map_err(|_| Stop::from("packet_stale_file"))?;
         let is_file = index + 1 == parts.len();
-        let flags =
-            O_RDONLY | O_CLOEXEC | O_NOFOLLOW | if is_file { O_NONBLOCK } else { O_DIRECTORY };
+        let flags = libc::O_RDONLY
+            | libc::O_CLOEXEC
+            | libc::O_NOFOLLOW
+            | if is_file {
+                libc::O_NONBLOCK
+            } else {
+                libc::O_DIRECTORY
+            };
         // Each component is opened relative to the preceding directory handle.
         // O_NOFOLLOW prevents a concurrent symlink swap from redirecting the read.
-        let descriptor = unsafe { openat(directory.as_raw_fd(), part.as_ptr(), flags) };
+        let descriptor = unsafe { libc::openat(directory.as_raw_fd(), part.as_ptr(), flags) };
         require(descriptor >= 0, "packet_stale_file")?;
         // openat returned an owned descriptor.
         let opened = unsafe { File::from_raw_fd(descriptor) };
