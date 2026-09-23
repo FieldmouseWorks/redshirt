@@ -127,11 +127,11 @@ configuration.
 
 This is local execution evidence, not a correctness judgment or hosted-check
 attribution. Ignored dependencies and files outside the checkout need separate
-input evidence; a Gitlink/submodule present in the index is rejected before
-dispatch because nested tracked files are outside this snapshot. Output symlinks
-record the link itself, not its target. On this Linux host, a timeout or interrupt
-terminates the child's private process group
-and reaps the direct child. Processes that detach into another session are outside
+input evidence; Gitlinks and directory source inputs, including nested Git repos,
+are rejected before dispatch because nested tracked files are outside this
+snapshot. Output symlinks record the link itself, not its target. On this Linux
+host, a timeout or interrupt terminates the child's private process group and
+reaps the direct child. Processes that detach into another session are outside
 that cleanup scope. The incomplete receipt records the child PID and process group
 for manual inspection if the wrapper is forcibly terminated; it does not recover
 or clean up after such a termination.

@@ -33,9 +33,10 @@ class CheckReceiptTests(unittest.TestCase):
         return subprocess.run(["git", "-C", str(self.repo), *arguments],
                               capture_output=True, check=True)
 
-    def run_receipt(self, output, *command, extra=(), environment=None):
+    def run_receipt(self, output, *command, extra=(), environment=None, cwd=None):
         return subprocess.run([sys.executable, str(SCRIPT), "--output", str(output),
-                               "--cwd", str(self.repo), *extra, "--", *command],
+                               "--cwd", str(self.repo if cwd is None else cwd),
+                               *extra, "--", *command],
                               capture_output=True, text=True, env=environment)
 
     def receipt(self, output):
@@ -166,6 +167,50 @@ class CheckReceiptTests(unittest.TestCase):
         self.assertIsNone(receipt["child_pid"])
         self.assertFalse(marker.exists())
         self.assertEqual((nested / "nested.txt").read_text(), "nested dirty\n")
+
+    def test_untracked_nested_git_repo_is_rejected_before_command_dispatch(self):
+        nested = self.repo / "untracked_project"
+        nested.mkdir()
+        subprocess.run(["git", "-C", str(nested), "init", "-q"], check=True, capture_output=True)
+        (nested / "nested.txt").write_text("nested committed\n")
+        subprocess.run(["git", "-C", str(nested), "add", "nested.txt"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(nested), "-c", "user.name=Test",
+                        "-c", "user.email=test@example.invalid", "commit", "-qm", "nested"],
+                       check=True, capture_output=True)
+        self.assertIn(b"untracked_project/\0",
+                      self.git("ls-files", "--others", "--exclude-standard", "-z").stdout)
+        (nested / "nested.txt").write_text("nested dirty\n")
+        marker = self.base / "command-ran"
+        output = self.base / "untracked-nested"
+        script = ("from pathlib import Path; import sys; "
+                  "Path('untracked_project/nested.txt').write_text('changed by command'); "
+                  "Path(sys.argv[1]).write_text('ran')")
+        result = self.run_receipt(output, sys.executable, "-c", script, str(marker))
+        self.assertNotEqual(result.returncode, 0)
+        receipt = self.receipt(output)
+        self.assertEqual(receipt["status"], "snapshot_error")
+        self.assertIn("source directory", receipt["error"])
+        self.assertIsNone(receipt["child_pid"])
+        self.assertFalse(marker.exists())
+        self.assertEqual((nested / "nested.txt").read_text(), "nested dirty\n")
+
+    def test_checkout_with_trailing_space_uses_its_own_source_snapshot(self):
+        spaced_repo = self.base / "candidate "
+        subprocess.run(["git", "clone", "-q", str(self.repo), str(spaced_repo)],
+                       check=True, capture_output=True)
+        output = self.base / "spaced-root"
+        result = self.run_receipt(output, sys.executable, "-c",
+                                  "from pathlib import Path; Path('source.txt').write_text('changed\\n')",
+                                  cwd=spaced_repo)
+        self.assertNotEqual(result.returncode, 0)
+        receipt = self.receipt(output)
+        self.assertEqual(receipt["checkout"], str(spaced_repo))
+        self.assertEqual(receipt["cwd"], str(spaced_repo))
+        self.assertEqual(receipt["child_returncode"], 0)
+        self.assertEqual(receipt["status"], "inputs_changed")
+        self.assertTrue(receipt["source_changed"])
+        self.assertEqual((self.repo / "source.txt").read_text(), "committed\n")
 
     def test_dirty_unchanged_candidate_passes_and_index_only_change_fails(self):
         (self.repo / "source.txt").write_text("dirty candidate\n")

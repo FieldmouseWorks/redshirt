@@ -68,7 +68,7 @@ def git(root, *args):
 
 
 def git_text(root, *args):
-    return git(root, *args).decode("utf-8", "surrogateescape").strip()
+    return git(root, *args).decode("utf-8", "surrogateescape").removesuffix("\n")
 
 
 def source_state(root):
@@ -90,8 +90,14 @@ def source_state(root):
                  git(root, "ls-files", "--others", "--exclude-standard", "-z").split(b"\0")
                  if path}
     paths = sorted(tracked | untracked)
+    working_files = {}
+    for path in paths:
+        state = file_state(root / path)
+        if state["kind"] == "directory":
+            raise RuntimeError(f"source directory input unsupported: {path}")
+        working_files[path] = state
     return {"head": head, "committed_tree": tree, "index": index,
-            "working_files": {path: file_state(root / path) for path in paths},
+            "working_files": working_files,
             "untracked": sorted(untracked)}
 
 
@@ -170,6 +176,8 @@ def main(arguments):
         if not cwd.is_dir():
             raise ValueError("--cwd must be a directory")
         root = Path(git_text(cwd, "rev-parse", "--show-toplevel")).resolve(strict=True)
+        if not inside(cwd, root):
+            raise ValueError("Git checkout root does not contain --cwd")
         if not options.output.is_absolute():
             raise ValueError("--output must be an absolute path")
         output = options.output
