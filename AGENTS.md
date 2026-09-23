@@ -54,8 +54,10 @@ Verified results unlock dependencies; failed checks get scoped repairs within
 the existing limit. Archive completed graphs, keep one next action, and continue
 through ready authorized work. This guidance does not implement a dispatcher.
 
-Complete the diff/behavior review and required gates, then the authorized PR,
-merge, exact-main verification, evidence read-back and owned cleanup. Preserve
+The owner grants standing permission in Redshirt to merge and clean up on green
+(2026-09-23): after review and required checks pass for the exact candidate in an
+authorized outcome, merge without asking again, verify exact main, read back the
+evidence archive and clean up owned resources under the workflow's safeguards. Preserve
 unrelated branches, worktrees and processes. Reuse recorded authority; a graph
 edit cannot grant permissions or reset effort. [Authority and effort](docs/WORKFLOW.md#authority-and-effort)
 records this setup's scope and how to handle a genuinely missing decision.

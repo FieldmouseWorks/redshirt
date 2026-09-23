@@ -152,10 +152,15 @@ execution and replay model-free.
 The setup scope comes from the owner's request recorded in [issue #28](https://github.com/FieldmouseWorks/redshirt/issues/28),
 under the existing `AGENTS.md` rules for bounded local work, private-evidence
 handling and applicable checks. That authorizes this documentation, its local
-checks and scoped issue/PR preparation. Issue #28 records the setup-specific merge
-decision and final receipts; the setup request and prior slice approvals alone do
-not grant merge. This setup grants no deployment, release, newly paid service or
-live-use allowance. Any future live use needs its own concrete, bounded
+checks and scoped issue/PR preparation. On 2026-09-23, the owner added standing
+permission for Redshirt: "You have standing permission to merge and clean up on
+green." After review and all required checks pass for the exact candidate in an
+authorized outcome, continue through merge, exact-main verification, evidence
+archive/read-back and cleanup of owned merged resources without another approval
+pause. [Issue #28](https://github.com/FieldmouseWorks/redshirt/issues/28) records
+the decision and setup receipts. This permission does not select unrelated queue
+items or grant deployment, release, newly paid service or live-use allowance.
+Any future live use needs its own concrete, bounded
 authorization. Unrestricted filesystem access is a capability, not additional
 project authority.
 
