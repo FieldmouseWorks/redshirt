@@ -89,6 +89,54 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["stop"], "selector_stop")
         self.assertEqual(report["attempted_inputs"], 0)
 
+    async def test_terminal_replay_requires_all_steps_and_final_verification(self):
+        class TerminalFixture(Fixture):
+            bad_final = False
+
+            async def observe(self):
+                self.terminal = "complete" if self.value >= 1 else None
+                return await super().observe()
+
+            async def evaluate(self, phase, operation):
+                check = await super().evaluate(phase, operation)
+                if self.bad_final and phase == "final":
+                    return Verdict(False, False, check.checks)
+                return check
+
+        folder = self.output()
+        first = await run(TerminalFixture(), folder, provider=Scripted(["increment"]))
+        self.assertEqual(first["stop"], "complete")
+        saved = json.loads((folder / "replay.json").read_text())
+        replay = await self.checked_run(TerminalFixture(), replay=saved)
+        self.assertTrue(replay["replay_complete"])
+        self.assertEqual(replay["requests"], 0)
+        self.assertEqual(first["evaluations"], replay["evaluations"])
+        bad_final = TerminalFixture()
+        bad_final.bad_final = True
+        report = await self.checked_run(bad_final, replay=saved)
+        self.assertFalse(report["replay_complete"])
+        self.assertFalse(report["final"]["ok"])
+
+        longer = self.output()
+        await run(Fixture(), longer, provider=Scripted(["increment", "increment"]))
+        saved = json.loads((longer / "replay.json").read_text())
+        report = await self.checked_run(TerminalFixture(), replay=saved)
+        self.assertEqual(report["stop"], "complete")
+        self.assertFalse(report["replay_complete"])
+        self.assertEqual(report["attempted_inputs"], 1)
+        self.assertEqual(report["requests"], 0)
+
+        empty = self.output()
+        await run(Fixture(), empty, provider=Scripted(["stop"]))
+        saved = json.loads((empty / "replay.json").read_text())
+        terminal = Fixture()
+        terminal.terminal = "death"
+        report = await self.checked_run(terminal, replay=saved)
+        self.assertEqual(report["stop"], "death")
+        self.assertFalse(report["replay_complete"])
+        self.assertEqual(report["attempted_inputs"], 0)
+        self.assertEqual(report["requests"], 0)
+
     async def test_negative_control_detects_lying_receipt(self):
         report = await self.checked_run(Fixture(omit_input=True), provider=Scripted(["increment"]))
         self.assertEqual(report["stop"], "evaluation_failed")

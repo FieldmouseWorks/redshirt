@@ -165,7 +165,14 @@ pub async fn run(
             let observation = &frame.observation;
             require(observation.environment == baseline.observation.environment
                 && observation.epoch == baseline.observation.epoch, "environment_changed")?;
-            if let Some(terminal) = &observation.terminal { return Err(Stop(terminal.clone())); }
+            if let Some(terminal) = &observation.terminal {
+                // Only a fully replayed, checked operation can override terminal
+                // refusal. Initial terminals and unfinished traces still refuse.
+                if !records.is_empty() && saved.as_ref().is_some_and(|saved| records.len() == saved.steps.len()) {
+                    return Ok("replay_complete");
+                }
+                return Err(Stop(terminal.clone()));
+            }
             let saved_step = if let Some(saved) = &saved {
                 if records.len() == saved.steps.len() { return Ok("replay_complete"); }
                 Some(&saved.steps[records.len()])

@@ -198,6 +198,11 @@ async def run(adapter: Adapter, output, *, provider=None, replay=None,
             if observation.environment != baseline.environment or observation.epoch != baseline.epoch:
                 raise Stop("environment_changed")
             if observation.terminal:
+                # A final checked operation may reach terminal state. Initial
+                # terminals and traces with remaining steps must still refuse.
+                if replay is not None and records and len(records) == len(replay["steps"]):
+                    report["stop"] = "replay_complete"
+                    break
                 raise Stop(observation.terminal)
             candidates = candidates_for(adapter, observation, limits)
             frozen = encoded([asdict(c) for c in candidates])
