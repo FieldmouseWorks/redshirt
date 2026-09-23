@@ -13,8 +13,10 @@ use std::{
     path::Path,
 };
 
+pub mod codex;
+pub mod lexical;
 mod runner;
-pub use runner::{MockTransport, campaign, replay};
+pub use runner::{MockTransport, campaign, campaign_with_diagnostic, replay};
 
 pub const MAX_FILE: usize = 524288;
 const MAX_ORACLE: usize = 32768;
@@ -75,6 +77,10 @@ pub struct Manifest {
     pub required: Vec<Chunk>,
     pub limits: Limits,
     pub cases: Vec<Case>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baseline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<codex::Profile>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -111,7 +117,11 @@ impl Manifest {
 
     pub fn provider_config(&self) -> jev::Config {
         jev::Config {
-            request_limit: self.limits.max_calls,
+            request_limit: if self.diagnostic.is_some() {
+                self.cases.len() as u32
+            } else {
+                self.limits.max_calls
+            },
             request_bytes: self.limits.request_bytes,
             ..jev::Config::default()
         }
@@ -119,12 +129,23 @@ impl Manifest {
 
     pub fn validate(&self) -> Result<()> {
         require(
-            self.version == 1
+            (self.version == 1 || self.version == 2)
                 && (2..=4).contains(&self.cases.len())
                 && self.source_revision.len() == 40
                 && self.source_revision.bytes().all(|c| c.is_ascii_hexdigit()),
             "context_manifest",
         )?;
+        require(
+            if self.version == 1 {
+                self.baseline.is_none() && self.diagnostic.is_none()
+            } else {
+                self.baseline.as_deref() == Some("bm25_v1") && self.diagnostic.is_some()
+            },
+            "context_protocol",
+        )?;
+        if let Some(profile) = &self.diagnostic {
+            profile.validate()?;
+        }
         require(
             (1024..=30000).contains(&self.limits.context_bytes)
                 && (1..=4).contains(&self.limits.selected_chunks)
@@ -138,7 +159,7 @@ impl Manifest {
                 && self.limits.max_reserved_usd.is_finite()
                 && self.limits.max_reserved_usd > 0.0
                 && self.limits.max_reserved_usd <= MAX_RESERVED_USD
-                && calls as f64 * per_call_usd() <= self.limits.max_reserved_usd,
+                && self.jev_calls() as f64 * per_call_usd() <= self.limits.max_reserved_usd,
             "context_allowance",
         )?;
         self.provider_config().validate()?;
@@ -211,8 +232,24 @@ impl Manifest {
                     question.validate()?;
                 }
             }
+            if let Some(profile) = &self.diagnostic {
+                require(
+                    encoded(&codex::request(
+                        profile,
+                        state(self, case, &all),
+                        &case.diagnoses,
+                    )?)?
+                    .len()
+                        <= self.limits.request_bytes,
+                    "context_diagnostic_budget",
+                )?;
+            }
         }
         require(encoded(self)?.len() <= MAX_FILE, "context_manifest_size")
+    }
+
+    pub fn jev_calls(&self) -> usize {
+        self.cases.len() * if self.diagnostic.is_some() { 1 } else { 3 }
     }
 }
 
@@ -294,7 +331,14 @@ pub fn scoring_questions(case: &Case) -> Questions {
 }
 
 pub fn select(manifest: &Manifest, case: &Case, scores: Option<&Answers>) -> Result<Vec<String>> {
-    let mut ranked = case.baseline_order.clone();
+    let mut ranked = if manifest.baseline.as_deref() == Some("bm25_v1") {
+        lexical::ranking(case)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
+    } else {
+        case.baseline_order.clone()
+    };
     if let Some(scores) = scores {
         let questions = scoring_questions(case);
         require(scores.keys().eq(questions.keys()), "context_score_ids")?;
@@ -306,7 +350,7 @@ pub fn select(manifest: &Manifest, case: &Case, scores: Option<&Answers>) -> Res
                 Answer::Score { score, .. } => *score,
                 _ => unreachable!(),
             };
-            // Stable sort preserves the frozen baseline ranking when scores tie.
+            // Stable sort preserves the frozen deterministic ranking on ties.
             score(b).total_cmp(&score(a))
         });
     }
@@ -332,16 +376,21 @@ pub fn preflight(manifest: &Manifest, oracle: &Oracle) -> Result<Value> {
         .iter()
         .map(|case| {
             let selected = select(manifest, case, None)?;
-            Ok(
-                json!({"id":case.id,"split":case.split,"baseline_selected":selected,
+            let mut row = json!({"id":case.id,"split":case.split,"baseline_selected":selected,
             "mandatory_sha256":sha256(&encoded(&state(manifest,case,&[])["mandatory"])?),
-            "baseline_context_bytes":encoded(&state(manifest,case,&selected))?.len()}),
-            )
+            "baseline_context_bytes":encoded(&state(manifest,case,&selected))?.len()});
+            if manifest.baseline.is_some() {
+                row["bm25_ranking"] = json!(lexical::ranking(case));
+            }
+            Ok(row)
         })
         .collect::<Result<_>>()?;
     Ok(
-        json!({"version":1,"manifest_sha256":manifest.digest()?,"model":jev::MODEL,
-        "max_calls":manifest.cases.len()*3,"reserved_usd":manifest.cases.len() as f64*3.0*per_call_usd(),
+        json!({"version":manifest.version,"manifest_sha256":manifest.digest()?,"model":jev::MODEL,
+        "max_calls":manifest.cases.len()*3,"reserved_usd":manifest.jev_calls() as f64*per_call_usd(),
+        "reserved_codex_turns":if manifest.diagnostic.is_some() {manifest.cases.len()*2} else {0},
+        "coding_model":manifest.diagnostic.as_ref().map(|p| &p.model),
+        "codex_billing":"unknown_subscription_usage",
         "cases":cases,"live_calls":0,"quality_evidence":false}),
     )
 }

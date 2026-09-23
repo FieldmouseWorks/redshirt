@@ -20,6 +20,4 @@ serde_json = { version = "1.0.150", features = ["float_roundtrip"] }
 sha2 = "0.10.9"
 tokio = { version = "1.52.3", features = ["rt", "macros", "time", "sync", "process", "io-util", "signal", "net"] }
 tokio-util = { version = "0.7.18", features = ["rt"] }
-
-[dev-dependencies]
 tempfile = "3.27.0"
