@@ -237,6 +237,65 @@ async fn paired_packets_preserve_policy_exclude_truth_and_replay_without_a_provi
 }
 
 #[tokio::test]
+async fn canonical_oracle_size_is_admitted_before_dispatch_and_replays() {
+    let (manifest, mut oracle) = inputs();
+    let unicode_proof = "é".repeat(800); // 1,600 UTF-8 bytes; 4,800 encoded bytes.
+    for truth in oracle.cases.values_mut() {
+        truth.proof = vec![unicode_proof.clone(); 4];
+    }
+    assert!(serde_json::to_vec(&oracle).unwrap().len() < 32768);
+    assert!(encoded(&oracle).unwrap().len() > 32768);
+    assert_eq!(
+        preflight(&manifest, &oracle).unwrap_err().0,
+        "context_oracle_size"
+    );
+
+    let (provider, seen) = provider(&manifest, false, false);
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("oversized");
+    assert_eq!(
+        campaign(
+            manifest.clone(),
+            oracle.clone(),
+            provider,
+            &output,
+            false,
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap_err()
+        .0,
+        "context_oracle_size"
+    );
+    assert!(seen.lock().unwrap().is_empty());
+    assert!(!output.exists());
+
+    for truth in oracle.cases.values_mut() {
+        truth.proof.pop();
+    }
+    assert!(encoded(&oracle).unwrap().len() <= 32768);
+    let (provider, seen) = self::provider(&manifest, false, false);
+    let output = temp.path().join("within_limit");
+    let report = campaign(
+        manifest,
+        oracle.clone(),
+        provider,
+        &output,
+        false,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["complete"], true);
+    assert_eq!(
+        std::fs::read(output.join("oracle.json")).unwrap(),
+        encoded(&oracle).unwrap()
+    );
+    assert_eq!(replay(&output).unwrap()["provider_calls"], 0);
+    assert_eq!(seen.lock().unwrap().len(), 6);
+}
+
+#[tokio::test]
 async fn malformed_selector_stops_before_treatment_and_keeps_unknown_usage() {
     let (manifest, oracle) = inputs();
     let (provider, seen) = provider(&manifest, true, false);
