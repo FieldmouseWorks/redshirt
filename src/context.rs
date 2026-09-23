@@ -19,6 +19,7 @@ pub mod codex;
 pub mod lexical;
 pub mod packet;
 mod runner;
+pub mod shadow;
 pub use runner::{MockTransport, campaign, campaign_with_diagnostic, replay};
 
 pub const MAX_FILE: usize = 1024 * 1024;

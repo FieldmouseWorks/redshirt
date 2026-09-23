@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "source_revision": "64d6348ddce3bfb10031155fe5de3957d09d38d2",
+  "task": "Trace how a saved operation replay behaves when the environment becomes terminal. Compare a run that has consumed the saved sequence with one that still has saved steps remaining, and identify the evidence needed to decide whether replay completed successfully. Include the regression control for early and exact completion.",
+  "required": [
+    {
+      "id": "instructions",
+      "path": "AGENTS.md",
+      "start_line": 1,
+      "end_line": 90
+    }
+  ],
+  "chunks": [
+    {
+      "id": "c01",
+      "path": "src/controller.rs",
+      "start_line": 106,
+      "end_line": 298
+    },
+    {
+      "id": "c02",
+      "path": "src/contract.rs",
+      "start_line": 23,
+      "end_line": 77
+    },
+    {
+      "id": "c03",
+      "path": "src/contract.rs",
+      "start_line": 78,
+      "end_line": 130
+    },
+    {
+      "id": "c04",
+      "path": "src/contract.rs",
+      "start_line": 132,
+      "end_line": 164
+    },
+    {
+      "id": "c05",
+      "path": "tests/rust_controller.rs",
+      "start_line": 12,
+      "end_line": 135
+    },
+    {
+      "id": "c06",
+      "path": "tests/rust_controller.rs",
+      "start_line": 165,
+      "end_line": 187
+    },
+    {
+      "id": "c07",
+      "path": "tests/rust_controller.rs",
+      "start_line": 250,
+      "end_line": 316
+    },
+    {
+      "id": "c08",
+      "path": "tests/rust_controller.rs",
+      "start_line": 317,
+      "end_line": 421
+    }
+  ]
+}

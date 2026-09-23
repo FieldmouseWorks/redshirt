@@ -86,6 +86,11 @@ fixed, grading stays independent, and default checks and replay use no model.
 excerpts with Git references and freshness checks; they do not select or prove
 complete evidence.
 
+The [shadow-ranking trial](docs/SHADOW-RANKING.md) compares BM25 ordering with
+one Jev relevance batch per verified source packet. It preserves every excerpt,
+records both complete rankings, and keeps the independent evidence key outside
+the provider request. Default checks and replay make no model calls.
+
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never
 reported as a reset. Their evidence is explicitly nonreplayable; replay is refused
