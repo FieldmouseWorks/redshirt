@@ -80,9 +80,9 @@ Finite transport, file, typed-question, response and evidence limits remain
 separate safeguards. They are not model-token limits. Expanded request evidence
 must fit the complete campaign reservation before dispatch. Version 3 bounds
 the encoded manifest at 1 MiB, each request at 512 KiB, each call record at
-896 KiB, and the call log at 8 MiB. Preflight reserves the exact requests plus
-bounded escaped outputs and receipt overhead; historical versions retain their
-old bounds. The supported typed
+1 MiB, and the call log at 8 MiB. Preflight reserves the exact requests plus
+bounded escaped outputs, the additional copy of Codex usage from stdout, and
+receipt overhead; historical versions retain their old bounds. The supported typed
 batch still permits up to eight optional evidence questions per case, and call,
 spending, cancellation and response limits remain in force. New mock campaigns
 use the same version-3 admission policy as live campaigns; no live use is

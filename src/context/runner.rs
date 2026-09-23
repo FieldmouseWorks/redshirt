@@ -10,7 +10,7 @@ use std::{
 const LEGACY_MAX_ARTIFACT: usize = 4 * 1024 * 1024;
 const MAX_ARTIFACT: usize = 8 * 1024 * 1024;
 const LEGACY_MAX_CALL: usize = 262144;
-const MAX_CALL: usize = 896 * 1024;
+const MAX_CALL: usize = 1024 * 1024;
 // A canonical JSON string expands by at most six bytes per input byte. The
 // remaining 32 KiB bounds receipt fields, answer policy and call bookkeeping.
 const RECEIPT_OVERHEAD: usize = 32 * 1024;
@@ -105,7 +105,7 @@ pub(super) fn evidence_reservation(manifest: &Manifest) -> Result<Value> {
             (
                 codex_diagnosis.unwrap_or(jev_diagnosis),
                 if codex_diagnosis.is_some() {
-                    codex::MAX_STDOUT + codex::MAX_STDERR
+                    2 * codex::MAX_STDOUT + codex::MAX_STDERR
                 } else {
                     jev::MAX_BYTES
                 },
@@ -113,7 +113,7 @@ pub(super) fn evidence_reservation(manifest: &Manifest) -> Result<Value> {
             (
                 codex_diagnosis.unwrap_or(jev_diagnosis),
                 if codex_diagnosis.is_some() {
-                    codex::MAX_STDOUT + codex::MAX_STDERR
+                    2 * codex::MAX_STDOUT + codex::MAX_STDERR
                 } else {
                     jev::MAX_BYTES
                 },
@@ -129,7 +129,7 @@ pub(super) fn evidence_reservation(manifest: &Manifest) -> Result<Value> {
     Ok(
         json!({"reserved_call_record_bytes":total,"largest_reserved_call_record_bytes":largest,
         "single_record_limit_bytes":MAX_CALL,"campaign_limit_bytes":MAX_ARTIFACT,
-        "reservation":"canonical_request_plus_six_times_bounded_output_plus_32768_receipt_bytes"}),
+        "reservation":"canonical_request_plus_six_times_bounded_output_and_copied_codex_usage_plus_32768_receipt_bytes"}),
     )
 }
 

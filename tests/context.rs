@@ -113,6 +113,63 @@ fn mixed_inputs() -> (Manifest, Oracle) {
     (manifest, oracle)
 }
 
+fn large_codex_inputs(repetitions: usize) -> (Manifest, Oracle) {
+    // Upgrade the saved pre-v3 mock inputs, then use a long, highly repetitive
+    // required chunk. The independent review probe found this packet shape.
+    let mut manifest: Manifest =
+        serde_json::from_str(include_str!("fixtures/context-v2-saved/manifest.json")).unwrap();
+    let mut oracle: Oracle =
+        serde_json::from_str(include_str!("fixtures/context-v2-saved/oracle.json")).unwrap();
+    manifest.version = 3;
+    manifest.context_policy = Some(CONTEXT_POLICY.into());
+    manifest.limits.context_bytes = None;
+    manifest.limits.selected_chunks = None;
+    manifest.limits.request_bytes = None;
+    manifest.required[0] = chunk(
+        "policy",
+        &format!("{}x", "-".repeat(64)).repeat(repetitions),
+    );
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    (manifest, oracle)
+}
+
+fn maximum_bounded_transcript() -> codex::Transcript {
+    let mut events = [
+        json!({"type":"thread.started"}),
+        json!({"type":"turn.started"}),
+        json!({"type":"item.completed","item":{"type":"agent_message",
+            "text":"{\"choice\":\"insufficient\"}"}}),
+        json!({"type":"turn.completed","usage":{
+            "input_tokens":100,"cached_input_tokens":0,"output_tokens":1,"padding":""}}),
+    ];
+    let unpadded = events
+        .iter()
+        .map(|event| format!("{event}\n"))
+        .collect::<String>();
+    events[3]["usage"]["padding"] = "\u{7f}".repeat(codex::MAX_STDOUT - unpadded.len()).into();
+    let stdout = events.iter().map(|event| format!("{event}\n")).collect();
+    let transcript = codex::Transcript {
+        stdout,
+        stderr: "\u{7f}".repeat(codex::MAX_STDERR),
+        exit_code: Some(0),
+        stop: None,
+    };
+    assert_eq!(transcript.stdout.len(), codex::MAX_STDOUT);
+    assert_eq!(transcript.stderr.len(), codex::MAX_STDERR);
+    transcript
+}
+
+struct BoundedCoding {
+    seen: Arc<Mutex<Vec<Value>>>,
+}
+#[async_trait]
+impl codex::Transport for BoundedCoding {
+    async fn run(&mut self, body: &Value, _: &CancellationToken) -> Result<codex::Transcript> {
+        self.seen.lock().unwrap().push(body.clone());
+        Ok(maximum_bounded_transcript())
+    }
+}
+
 struct Coding {
     seen: Arc<Mutex<Vec<Value>>>,
     fail: bool,
@@ -727,6 +784,129 @@ async fn v3_codex_diagnostics_do_not_apply_unused_jev_choice_size_cap() {
 }
 
 #[tokio::test]
+async fn bounded_codex_usage_copy_is_reserved_and_replayed() {
+    let (manifest, oracle) = large_codex_inputs(7900);
+    let plan = preflight(&manifest, &oracle).unwrap();
+    let case = &manifest.cases[0];
+    let selected = select(&manifest, case, None).unwrap();
+    let body = codex::request(
+        manifest.diagnostic.as_ref().unwrap(),
+        state(&manifest, case, &selected),
+        &case.diagnoses,
+    )
+    .unwrap();
+    let body_bytes = encoded(&body).unwrap().len();
+    assert!(
+        body_bytes > 500_000 && body_bytes <= codex::MAX_REQUEST_BYTES,
+        "body_bytes={body_bytes}"
+    );
+    let (_, usage) = codex::parse(&maximum_bounded_transcript(), &body).unwrap();
+    assert!(encoded(&usage).unwrap().len() > 190_000);
+    assert_eq!(
+        plan["evidence_reservation"]["campaign_limit_bytes"],
+        8 * 1024 * 1024
+    );
+
+    let (provider, jev_seen) = provider(&manifest, false, false);
+    let codex_seen = Arc::new(Mutex::new(Vec::new()));
+    let diagnostic = codex::Diagnostic::new(
+        BoundedCoding {
+            seen: codex_seen.clone(),
+        },
+        manifest.diagnostic.clone().unwrap(),
+    )
+    .unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("bounded");
+    let report = campaign_with_diagnostic(
+        manifest,
+        oracle,
+        provider,
+        diagnostic,
+        &output,
+        false,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(report["complete"], true);
+    assert_eq!(jev_seen.lock().unwrap().len(), 2);
+    assert_eq!(codex_seen.lock().unwrap().len(), 4);
+    let log = std::fs::read_to_string(output.join("calls.jsonl")).unwrap();
+    assert_eq!(log.lines().count(), 6);
+    let actual = log.lines().next().unwrap().len() + 1;
+    assert!(actual > 896 * 1024, "actual={actual}");
+    assert!(
+        actual
+            <= plan["evidence_reservation"]["largest_reserved_call_record_bytes"]
+                .as_u64()
+                .unwrap() as usize
+    );
+    assert!(
+        actual
+            <= plan["evidence_reservation"]["single_record_limit_bytes"]
+                .as_u64()
+                .unwrap() as usize
+    );
+    assert_eq!(replay(&output).unwrap()["provider_calls"], 0);
+}
+
+#[tokio::test]
+async fn whole_campaign_evidence_overflow_refuses_before_any_dispatch() {
+    let (mut manifest, mut oracle) = large_codex_inputs(6000);
+    let control = preflight(&manifest, &oracle).unwrap();
+    assert!(
+        control["evidence_reservation"]["reserved_call_record_bytes"]
+            .as_u64()
+            .unwrap()
+            < 8 * 1024 * 1024
+    );
+    for i in 2..4 {
+        let mut case = manifest.cases[i - 2].clone();
+        let truth = oracle.cases[&case.id].clone();
+        case.id = format!("c{i}");
+        oracle.cases.insert(case.id.clone(), truth);
+        manifest.cases.push(case);
+    }
+    manifest.limits.max_calls = 12;
+    manifest.limits.max_reserved_usd = 0.04;
+    oracle.manifest_sha256 = manifest.digest().unwrap();
+    assert_eq!(
+        preflight(&manifest, &oracle).unwrap_err().0,
+        "context_evidence_campaign_budget"
+    );
+    let (provider, jev_seen) = provider(&manifest, false, false);
+    let codex_seen = Arc::new(Mutex::new(Vec::new()));
+    let diagnostic = codex::Diagnostic::new(
+        BoundedCoding {
+            seen: codex_seen.clone(),
+        },
+        manifest.diagnostic.clone().unwrap(),
+    )
+    .unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let output = temp.path().join("rejected");
+    assert_eq!(
+        campaign_with_diagnostic(
+            manifest,
+            oracle,
+            provider,
+            diagnostic,
+            &output,
+            false,
+            &CancellationToken::new()
+        )
+        .await
+        .unwrap_err()
+        .0,
+        "context_evidence_campaign_budget"
+    );
+    assert!(jev_seen.lock().unwrap().is_empty());
+    assert!(codex_seen.lock().unwrap().is_empty());
+    assert!(!output.exists());
+}
+
+#[tokio::test]
 async fn old_manifests_allow_inspection_but_no_new_execution() {
     let (manifest, oracle) = legacy_inputs();
     preflight(&manifest, &oracle).unwrap();
@@ -1138,6 +1318,16 @@ async fn replay_rejects_changed_request_grades_and_accounting() {
         changed[field] = value;
         std::fs::write(&report_path, encoded(&changed).unwrap()).unwrap();
         assert!(replay(&output).is_err(), "accepted changed {field}");
+    }
+    for field in ["capacity_policy", "evidence_reservation", "capacity_cases"] {
+        let mut changed = decode(&original).unwrap();
+        changed[field] = json!({"tampered":true});
+        std::fs::write(&report_path, encoded(&changed).unwrap()).unwrap();
+        assert_eq!(
+            replay(&output).unwrap_err().0,
+            "context_replay_capacity",
+            "{field}"
+        );
     }
     std::fs::write(&report_path, original).unwrap();
     let calls_path = output.join("calls.jsonl");
