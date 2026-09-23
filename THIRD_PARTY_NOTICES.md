@@ -33,3 +33,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Context-estimator dependency
+
+The version-3 context estimator depends on
+[`tiktoken-rs` 0.12.0](https://crates.io/crates/tiktoken-rs/0.12.0), published under
+the MIT license and pinned in `Cargo.toml`/`Cargo.lock`. Its bundled
+`r50k_base`, `cl100k_base` and `o200k_base` encodings are used as offline
+surrogates. They are not Jev's tokenizer, and their counts do not establish
+TypeSafe's internal tokenization or inference framing. See the
+[admission policy](docs/CONTEXT-COMPARISON.md#current-policy-estimated-model-capacity).

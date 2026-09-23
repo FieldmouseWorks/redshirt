@@ -1,10 +1,10 @@
 # Bounded diagnostic context comparison
 
-`redshirt-context` compares deterministic evidence retrieval with Jev relevance
-scoring before the same diagnostic model in both arms. Version 1 uses the
-consumer's ordering and Jev Choice diagnostics. Version 2 uses a Rust BM25
-baseline and an optional fixed local Codex CLI for closed-choice diagnostics.
-This read-only experiment leaves production context policy unchanged.
+`redshirt-context` records diagnostic comparisons and Jev relevance scores with
+consumer-owned evidence. New campaigns use version 3: model-capacity admission
+with an explicitly approximate token estimate, retaining all supplied evidence.
+Versions 1 and 2 retain their original selection rules for historical inspection
+and replay. This read-only experiment leaves production context policy unchanged.
 
 Consumers own source-pinned cases, actual owner packets, baseline ordering,
 complete diagnosis choices, and a separate independent answer/evidence key.
@@ -13,9 +13,93 @@ analysis, and offline replay. The first consumer is
 [Conary #1055](https://github.com/FieldmouseWorks/Conary/issues/1055); shared
 implementation and exact proof are tracked in [#22](https://github.com/FieldmouseWorks/redshirt/issues/22).
 
-## Frozen protocol
+## Current policy: estimated model capacity
 
-Supply a version-1 `manifest.json` and separate `oracle.json`. The latter binds
+Version 3 replaces the pilot's selected-excerpt and context-byte budgets. Its
+manifest sets `context_policy` to `jev_1_13_estimated_v1`, uses `bm25_v1` for the
+recorded baseline, and retains the common campaign call/spending limits:
+
+```json
+{
+  "version": 3,
+  "context_policy": "jev_1_13_estimated_v1",
+  "baseline": "bm25_v1",
+  "limits": {"max_calls": 12, "max_reserved_usd": 0.04}
+}
+```
+
+This fragment shows the policy fields; a complete manifest still needs its
+source revision, required material, cases and independent oracle. The old
+`context_bytes`, `selected_chunks` and `request_bytes` fields must be omitted.
+Old manifests are not silently upgraded, and a policy change does not revise a
+historical result.
+
+The [published Jev 1.13 limits](https://docs.typesafe.ai/models), checked on
+2026-09-23, are 64k tokens for state plus all questions and 32k for state plus
+the longest question. The provider does not specify whether `k` is decimal or
+binary. Redshirt uses the smaller decimal interpretation and reserves 20%:
+
+| Constraint | Published ceiling interpreted conservatively | Estimated admission ceiling |
+| --- | ---: | ---: |
+| Complete Jev request | 64,000 tokens | 51,200 tokens |
+| State plus any one question | 32,000 tokens | 25,600 tokens |
+
+TypeSafe's public API and official Python/JavaScript SDKs provide no preflight
+token counter, published Jev tokenizer or complete inference-format contract.
+The owner accepted an approximate policy with headroom. Redshirt takes the
+largest ordinary-text token count from `r50k_base`, `cl100k_base` and `o200k_base`
+using pinned `tiktoken-rs` 0.12.0. These are surrogate encodings, not Jev's
+tokenizer. It measures canonical JSON for the complete request and separately
+for each request containing the same state and one question. Instructions,
+criteria and JSON overhead are included; special-token-looking source text is
+ordinary data. Even question IDs are counted, although the
+[API documentation](https://docs.typesafe.ai/api) says they are not
+used in inference.
+
+The estimator and 20% reserve are explicit Redshirt choices, without empirical
+calibration against Jev's tokenizer. They reduce overshoot risk but cannot
+guarantee provider acceptance. Preflight records the policy, estimator, model,
+estimated counts, ceilings and headroom. Reported usage after a real call remains
+separate evidence; manufactured mock usage cannot validate the estimate.
+
+Every admitted diagnostic packet retains the task, all required and mandatory
+material, and all supplied optional excerpts in corpus order. Relevance scores
+remain validated observations; there is no two- or four-excerpt packing cutoff.
+Both diagnostic arms can therefore receive identical packets. This protocol
+does not establish a selection benefit from a manufactured context bottleneck.
+It also cannot discover evidence the consumer omitted from the corpus.
+
+Preflight checks the full-pool scoring request and the actual diagnostic stages
+before output creation or dispatch. Oversized campaigns refuse as a whole;
+the runner does not truncate context, substitute cases or retry. Actual Jev
+dispatch repeats the capacity check. Optional Codex diagnostics retain their
+separate transport/profile checks; Jev's estimate does not measure Codex's
+internal request envelope or ambient context.
+
+Finite transport, file, typed-question, response and evidence limits remain
+separate safeguards. They are not model-token limits. Expanded request evidence
+must fit the complete campaign reservation before dispatch. Version 3 bounds
+the encoded manifest at 1 MiB, each request at 512 KiB, each call record at
+1 MiB, and the call log at 8 MiB. Preflight reserves the exact requests plus
+bounded escaped outputs, the additional copy of Codex usage from stdout, and
+receipt overhead; historical versions retain their old bounds. The supported typed
+batch still permits up to eight optional evidence questions per case, and call,
+spending, cancellation and response limits remain in force. New mock campaigns
+use the same version-3 admission policy as live campaigns; no live use is
+authorized by a successful preflight.
+
+The capacity helper's aggregate-overflow test uses a synthetic wide question
+batch. The current context protocol's eight-question and 8 KiB question limits
+can bind before that aggregate ceiling; campaign-level overflow tests exercise
+the state-plus-question boundary and refusal before output or dispatch. These
+are distinct observations, without reduced token limits for test convenience.
+
+Implementation, source audit, controls and integration receipts belong to
+[issue #36](https://github.com/FieldmouseWorks/redshirt/issues/36).
+
+## Historical versions 1 and 2
+
+Historical campaigns supplied a version-1 `manifest.json` and separate `oracle.json`. The latter binds
 the canonical manifest SHA-256 and maps each case to its expected diagnosis,
 essential evidence IDs, and independent proof commands. It never reaches the
 provider. Required project instructions and each case's mandatory owner packet
@@ -44,7 +128,7 @@ Existing output directories are refused; a new directory does not renew a live
 allowance. The existing five-second provider deadline and 16 KiB response cap
 apply. No real provider is used by default.
 
-New campaign preflight also checks the consumer's declared essential evidence
+Legacy preflight inspection also checks the consumer's declared essential evidence
 packet. For each case it packs all declared essential IDs in corpus order with
 the task and mandatory material, then measures that state's canonical encoded
 bytes. A case with an expected diagnosis other than `insufficient` must fit both
