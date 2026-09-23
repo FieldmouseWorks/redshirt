@@ -375,10 +375,32 @@ pub fn preflight(manifest: &Manifest, oracle: &Oracle) -> Result<Value> {
         .cases
         .iter()
         .map(|case| {
+            let truth = &oracle.cases[&case.id];
+            let declared_essential_count = truth.essential.len();
+            let declared_essential_context_bytes =
+                encoded(&state(manifest, case, &truth.essential))?.len();
+            let expected_insufficient_control = truth.diagnosis == "insufficient";
+            require(
+                expected_insufficient_control
+                    || declared_essential_count <= manifest.limits.selected_chunks,
+                "context_declared_essential_chunk_limit",
+            )?;
+            require(
+                expected_insufficient_control
+                    || declared_essential_context_bytes <= manifest.limits.context_bytes,
+                "context_declared_essential_byte_limit",
+            )?;
+            let declared_essential_feasible = declared_essential_count
+                <= manifest.limits.selected_chunks
+                && declared_essential_context_bytes <= manifest.limits.context_bytes;
             let selected = select(manifest, case, None)?;
             let mut row = json!({"id":case.id,"split":case.split,"baseline_selected":selected,
             "mandatory_sha256":sha256(&encoded(&state(manifest,case,&[])["mandatory"])?),
-            "baseline_context_bytes":encoded(&state(manifest,case,&selected))?.len()});
+            "baseline_context_bytes":encoded(&state(manifest,case,&selected))?.len(),
+            "declared_essential_count":declared_essential_count,
+            "declared_essential_context_bytes":declared_essential_context_bytes,
+            "declared_essential_feasible":declared_essential_feasible,
+            "expected_insufficient_control":expected_insufficient_control});
             if manifest.baseline.is_some() {
                 row["bm25_ranking"] = json!(lexical::ranking(case));
             }

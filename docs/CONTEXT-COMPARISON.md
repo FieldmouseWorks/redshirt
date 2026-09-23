@@ -44,6 +44,19 @@ Existing output directories are refused; a new directory does not renew a live
 allowance. The existing five-second provider deadline and 16 KiB response cap
 apply. No real provider is used by default.
 
+New campaign preflight also checks the consumer's declared essential evidence
+packet. For each case it packs all declared essential IDs in corpus order with
+the task and mandatory material, then measures that state's canonical encoded
+bytes. A case with an expected diagnosis other than `insufficient` must fit both
+`selected_chunks` and `context_bytes`. Preflight rows report
+`declared_essential_count`, `declared_essential_context_bytes`,
+`declared_essential_feasible`, and `expected_insufficient_control`. An explicitly
+expected `insufficient` diagnosis is a frozen abstention control: preflight admits
+it even when the declared packet is infeasible and reports that fact. The check
+does not alter selection or grading, and the oracle still never reaches a
+provider. Saved version-1 and version-2 evidence replays under its original
+validation rules.
+
 ## Commands
 
 ```sh
@@ -84,6 +97,9 @@ measure the consumer's declared evidence criterion, not whether the model relied
 on those chunks. A correct diagnosis may be inferable from the task or mandatory
 policy even when labelled evidence is absent. A result cannot establish general
 coding-agent accuracy, confidence calibration, or a production routing policy.
+The structural admission check cannot detect dependencies omitted from the
+consumer's declaration or establish semantic sufficiency. Corpus completeness
+remains with [Conary #1060](https://github.com/FieldmouseWorks/Conary/issues/1060).
 
 ## Version 2: lexical retrieval and a fixed coding model
 
