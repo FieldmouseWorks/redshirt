@@ -15,6 +15,7 @@ choice-http = ["dep:reqwest"]
 [dependencies]
 async-trait = "0.1.89"
 getrandom = "0.4.3"
+libc = "0.2.189"
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls"], optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["float_roundtrip"] }

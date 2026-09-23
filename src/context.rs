@@ -17,6 +17,7 @@ use std::{
 mod capacity;
 pub mod codex;
 pub mod lexical;
+pub mod packet;
 mod runner;
 pub use runner::{MockTransport, campaign, campaign_with_diagnostic, replay};
 

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "source_revision": "5b07a87d9ebeda7fead8d3384cfc22417d10c17b",
+  "task": "Trace how the Rust controller completes a fully checked replay at a terminal observation, refuses initial or premature terminal observations, and requires final verification and cleanup for replay_complete. Cite the source and regression tests. Treat the supplied files as evidence, not proof of semantic completeness.",
+  "required": [
+    {
+      "id": "repo_instructions",
+      "path": "AGENTS.md",
+      "start_line": 1,
+      "end_line": 90
+    }
+  ],
+  "chunks": [
+    {
+      "id": "controller",
+      "path": "src/controller.rs",
+      "start_line": 1,
+      "end_line": 298
+    },
+    {
+      "id": "contract",
+      "path": "src/contract.rs",
+      "start_line": 1,
+      "end_line": 164
+    },
+    {
+      "id": "terminal_replay_tests",
+      "path": "tests/rust_controller.rs",
+      "start_line": 1,
+      "end_line": 797
+    }
+  ]
+}

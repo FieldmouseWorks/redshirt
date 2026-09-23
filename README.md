@@ -82,6 +82,10 @@ consumer's deterministic evidence ordering against Jev relevance selection,
 followed by the same diagnostic model in both arms. Required instructions remain
 fixed, grading stays independent, and default checks and replay use no model.
 
+[Source-backed evidence packets](docs/EVIDENCE-PACKETS.md) retain caller-selected
+excerpts with Git references and freshness checks; they do not select or prove
+complete evidence.
+
 Adapters that can only attach to an existing session declare `setup_mode = 'attach'`.
 They retain bounded execution and mandatory checks, but successful setup is never
 reported as a reset. Their evidence is explicitly nonreplayable; replay is refused
