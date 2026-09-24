@@ -1,5 +1,13 @@
 # Redshirt
 
+> **Archived (2026-09-25).** Redshirt was built to host experiments with Jev, a cheap
+> decision model, across the owner's projects. A final bake-off found Jev matches
+> deepseek-flash at ranking which files an issue needs changed (MAP 0.852 vs 0.864; keyword
+> search 0.727 on 234 held-out cases) at about 1/7 the cost, but across a whole repository its
+> reranking adds only about 2 points of recall over free keyword search. That wasn't enough
+> to justify maintaining a shared runtime, and no project depends on it. The code stays
+> available under the MIT license; it is no longer maintained.
+
 A shared, observable experiment runner for software and interactive environments.
 
 Redshirt follows a bounded loop:
