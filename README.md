@@ -25,9 +25,8 @@ Concrete consumer-project work drives shared improvements through
 [separate Redshirt issues and PRs](docs/ARCHITECTURE.md#consumer-driven-work).
 Keep application rules and private integration evidence in their owning projects;
 record reusable needs here without making a nonblocking platform idea displace
-the application's outcome. New sessions start in the Git checkout with
-[AGENTS.md](AGENTS.md), [current state](docs/PROGRESS.md#current-state) and the
-task-relevant [project workflow](docs/WORKFLOW.md).
+the application's outcome. Contributors start with [AGENTS.md](AGENTS.md) and
+[current state](docs/CURRENT_STATE.md).
 
 Early development. The first implementation lives in Conary's existing
 `conary-test` harness and is under review in
@@ -96,8 +95,7 @@ They retain bounded execution and mandatory checks, but successful setup is neve
 reported as a reset. Their evidence is explicitly nonreplayable; replay is refused
 before setup or input. Existing resettable adapters keep the default `reset` mode.
 
-Follow [progress and measured results](docs/PROGRESS.md) and the
-[public progress thread](https://github.com/FieldmouseWorks/redshirt/issues/1).
+See [current state](docs/CURRENT_STATE.md) for what runs and what's open.
 
 ## Direction
 

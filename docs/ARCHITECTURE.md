@@ -61,7 +61,7 @@ For a need discovered in a consumer project:
    next action. A private counterpart links the public issue/PR and required
    revision; private identifiers, source and evidence stay in its own tracker.
 
-The [current progress surface](PROGRESS.md#current-surface) links existing shared
+The [current state](CURRENT_STATE.md) lists existing shared
 owners and proofs. Use those issues before proposing another provider transport,
 interactive API or controller migration. Broaden the platform only when a
 concrete acceptance case needs it. Preserve model-free execution/replay and

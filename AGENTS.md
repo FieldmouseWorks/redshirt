@@ -1,90 +1,71 @@
-# Redshirt project instructions
+# Agent guide
 
-Start in the actual Git checkout (`repo/` or an owned task worktree), not its
-parent directory. Inspect applicable `AGENTS.override.md`/`AGENTS.md`, working
-state, exact revision and the task's existing issue/PR before changing files.
-Use [current state](docs/PROGRESS.md#current-state) for continuation and the
-[workflow](docs/WORKFLOW.md) for substantive dependent work. Read only what the
-task needs: [architecture](docs/ARCHITECTURE.md) for ownership/cutovers,
-[Rust adapter](docs/RUST-ADAPTER.md), [interaction](docs/INTERACTION.md),
-[Jev](docs/JEV.md), [native Jev](docs/JEV-RUST.md) or
-[comparisons](docs/COMPARISON.md) when that boundary changes. An open draft is
-not merged behavior; historical receipts are not fresh verification.
+## Start here
 
-## Goals and ownership
+1. [README](README.md) and [current state](docs/CURRENT_STATE.md): what runs, what's open.
+2. The assigned GitHub issue.
+3. Only the docs for the boundary you're changing: [architecture](docs/ARCHITECTURE.md),
+   [Rust adapter](docs/RUST-ADAPTER.md), [interaction](docs/INTERACTION.md), [Jev](docs/JEV.md),
+   [native Jev](docs/JEV-RUST.md), [choice selectors](docs/CHOICE.md) or
+   [comparisons](docs/COMPARISON.md).
 
-Build reusable, bounded experiment and interaction tooling from concrete consumer
-needs. Rust owns the durable controller/provider/budget/evidence/replay core;
-versioned interfaces let useful Python, browser and other integrations remain
-independent. Preserve working baselines until a bounded cutover proves parity.
+## Invariants
 
-Consumer projects own their rules, content, role/actor policy, legal actions,
-environment setup and independent correctness checks. One controller owns an
-episode; a provider selects an offered candidate and never grants authority or
-judges its own success. Default runs and concrete replay work without a model.
-Preserve cancellation, freshness, uncertain-attempt accounting, mandatory final
-checks/cleanup and evidence limits. Attachment is not reset/replay authority.
+- Rust owns the controller, budgets, cancellation, provider contract, evidence and concrete replay.
+  One controller owns an episode; never nest controllers or copy one into an adapter.
+- A provider selects one offered candidate. It never grants authority, supplies arbitrary
+  commands or judges its own success.
+- Default execution and replay work with no model and no credentials.
+- Preserve cancellation, freshness, uncertain-attempt accounting, mandatory final checks/cleanup
+  and evidence limits. Attach-mode sessions never claim reset or replay.
+- Consumers (Conary, LoK-web, …) own their rules, content, roles, legal actions, environment
+  setup and independent evaluators. Redshirt stays generic.
+- Use typed values for decisions and test assertions, not substring matches over human-readable
+  text. Negative tests assert the specific typed reason or run a positive control first.
 
-## Work arising in another project
+## Consumer-driven work
 
-Follow [the consumer workflow](docs/ARCHITECTURE.md#consumer-driven-work).
-One concrete application outcome may lead a slice. Search the existing Redshirt
-issues before adding a shared need; record demonstrated limitations separately
-from hypotheses, with a generic contract and acceptance check. Required shared
-changes get their own issue, branch, commit, checks and scoped PR here. Record
-nonblocking opportunities here without diverting the consumer's active task.
-Do not copy a controller into an adapter or make a speculative platform/context
-graph a prerequisite for application work. Other repositories keep their scope.
+A concrete need in a consumer project leads. Shared changes get their own Redshirt issue and
+scoped PR with a generic contract and a synthetic reproducer; consumer-specific integration
+stays in the consumer. Record nonblocking ideas as issues here without diverting the consumer's
+task. See [consumer workflow](docs/ARCHITECTURE.md#consumer-driven-work).
 
-## Roles and completion
+## Workflow
 
-Use `gpt-6-astra` / `max` for primary conversation, planning, architecture, graph
-selection, review and integration; `gpt-6-sol` / `max` for complex implementation
-and debugging; `gpt-6-luna` / `max` for bounded exploration, documentation and
-checks. Delegate when useful, with exact inputs, acceptance, file ownership and
-concurrency limits; workers must preserve others' changes. Record requested and
-observable actual routing, report unavailable routes without substitution, and
-verify artifacts rather than accepting completion claims. Instructions cannot
-change an already running model. DeepSeek remains paused until explicitly enabled.
+- Short feature branch, scoped PR referencing the issue (`Refs #N`; `Closes #N` only when
+  acceptance is fully met). The PR body is the record: what changed, checks run, limitations.
+- Don't write evidence archives, hash receipts, task graphs or narration commits. Git history and
+  the PR are the record.
+- Keep [current state](docs/CURRENT_STATE.md) short and true; update it when behavior changes.
+- The owner has authorized merging on green and cleaning up your own branches and worktrees.
+- Stop and ask only for missing authority, unavailable capability or unresolved requirements.
 
-Define the outcome, acceptance and bounded effort before editing. Keep one
-canonical graph in the owning issue body for substantive dependent work; simple
-changes need only a short plan. Follow the [graph and evidence procedure](docs/WORKFLOW.md#task-graph).
-Verified results unlock dependencies; failed checks get scoped repairs within
-the existing limit. Archive completed graphs, keep one next action, and continue
-through ready authorized work. This guidance does not implement a dispatcher.
+Model choice and delegation are each contributor's machine-local setup; this file names none.
 
-The owner grants standing permission in Redshirt to merge and clean up on green
-(2026-09-23): after review and required checks pass for the exact candidate in an
-authorized outcome, merge without asking again, verify exact main, read back the
-evidence archive and clean up owned resources under the workflow's safeguards. Preserve
-unrelated branches, worktrees and processes. Reuse recorded authority; a graph
-edit cannot grant permissions or reset effort. [Authority and effort](docs/WORKFLOW.md#authority-and-effort)
-records this setup's scope and how to handle a genuinely missing decision.
+## Checks
 
-## Evidence and checks
+CI ([test.yml](.github/workflows/test.yml)) runs three lanes on every push and PR; all must pass.
+Locally, for the boundary you changed:
 
-Public Redshirt is MIT. Keep private source/assets, credentials, installed client
-files and unrestricted captures out of its code, tests, issues and PRs. Use
-synthetic or explicitly sanitized evidence. Keep private counterpart details in
-the consumer's own tracker; its private issue can link this public work.
+```sh
+cargo +1.98.0 fmt --all -- --check
+cargo +1.98.0 clippy --locked --all-targets -- -D warnings
+cargo +1.98.0 test --locked
+cargo +1.98.0 clippy --locked --all-features --all-targets -- -D warnings
+cargo +1.98.0 test --locked --all-features
+cargo +1.98.0 build --locked
+REDSHIRT_BIN="$PWD/target/debug/redshirt" python3 -m unittest discover -s tests -p 'test_rust_*.py'
+python3 -m unittest discover -s tests
+```
 
-Use original sources for source claims and actual revisions, command outputs and
-receipts for implementation claims. Preserve failures and distinguish self-review,
-independent review, local, browser and hosted results. Relevant input changes
-invalidate affected acceptance; never relabel old evidence as current.
+Documentation-only changes need `git diff --check` and a look at changed links. Report skipped
+tests; a green lane doesn't cover what it skipped. Consumer/browser integration is checked in the
+consumer, not here.
 
-- Documentation only: `git diff --check`, changed links/anchors and actual diff
-  review; no fresh runtime or live experiment is required.
-- Python: `python3 -m unittest discover -s tests -v`.
-- Rust: `cargo +1.98.0 fmt --all -- --check`, default and all-feature
-  `cargo +1.98.0 clippy --locked --all-targets -- -D warnings` and
-  `cargo +1.98.0 test --locked`; use the exact feature variants and real-pipe
-  commands in the [check matrix](docs/WORKFLOW.md#checks).
-- PR publication retains all three [CI lanes](.github/workflows/test.yml),
-  including optional HTTPX and the built Rust/Python pipe checks. Consumer/browser
-  integration has its own conditional gates; CI does not establish those passes.
+## Boundaries
 
-Preserve failed-target budgets and host permission controls. The optional product
-provider remains replaceable; paid/live use needs its own concrete bounded
-allowance, never a past campaign's. Keep private counterpart evidence in consumers.
+- Public MIT repository. No private source/assets, credentials, installed client files or
+  unsanitized captures in code, tests, issues or PRs. Private counterpart details stay in the
+  consumer's own tracker.
+- No live provider/model calls without a fresh, bounded owner allowance. A past campaign's
+  allowance never carries forward. Start with model-free and mock runs.
